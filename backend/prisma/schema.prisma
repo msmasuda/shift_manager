@@ -1,0 +1,58 @@
+// 将来の企業・団体別対応のため組織を用意
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id   String @id @default(cuid())
+  name String
+  users User[]
+  scheduleDays ScheduleDay[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  name           String
+  role           UserRole @default(MEMBER)
+  shiftAssignments ShiftAssignment[]
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+// 日付ごとの設定（その日の最低出勤人数）
+model ScheduleDay {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  date           DateTime @db.Date
+  minRequired    Int      @default(1) // その日の最低出勤人数
+  shiftAssignments ShiftAssignment[]
+  @@unique([organizationId, date])
+  @@index([organizationId])
+}
+
+// シフト割り当て（誰がいつ〜いつ入るか）
+model ShiftAssignment {
+  id             String   @id @default(cuid())
+  scheduleDayId String
+  scheduleDay   ScheduleDay @relation(fields: [scheduleDayId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime      String   // "09:00" 形式
+  endTime        String   // "18:00" 形式
+  @@index([scheduleDayId])
+  @@index([userId])
+}
