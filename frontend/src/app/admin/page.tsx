@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import {
   DndContext,
   type DragEndEvent,
@@ -9,159 +10,15 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { api } from "@/lib/api";
-import type { Organization, ScheduleDay, User, ScheduleWarning } from "@/types";
 import { AdminBoard } from "./AdminBoard";
-
-function AddShiftForm({
-  organizationId,
-  users,
-  rangeStart,
-  rangeEnd,
-  onAdded,
-}: {
-  organizationId: string;
-  users: User[];
-  rangeStart: string;
-  rangeEnd: string;
-  onAdded: () => Promise<void>;
-}) {
-  const [date, setDate] = useState(rangeStart);
-  const [userId, setUserId] = useState(users[0]?.id ?? "");
-  const [startTime, setStartTime] = useState("09:00");
-  const [endTime, setEndTime] = useState("18:00");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!userId) return;
-    setSubmitting(true);
-    try {
-      await api.shifts.create({
-        organizationId,
-        date,
-        userId,
-        startTime,
-        endTime,
-      });
-      setDate(rangeStart);
-      setStartTime("09:00");
-      setEndTime("18:00");
-      await onAdded();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "0.75rem",
-        alignItems: "flex-end",
-        padding: "1rem",
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "8px",
-        marginBottom: "1rem",
-      }}
-    >
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>日付</span>
-        <input
-          type="date"
-          value={date}
-          min={rangeStart}
-          max={rangeEnd}
-          onChange={(e) => setDate(e.target.value)}
-          style={{
-            padding: "0.5rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            color: "var(--text)",
-          }}
-        />
-      </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>担当者</span>
-        <select
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-          style={{
-            padding: "0.5rem",
-            minWidth: "8rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            color: "var(--text)",
-          }}
-        >
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>開始</span>
-        <input
-          type="time"
-          value={startTime}
-          onChange={(e) => setStartTime(e.target.value)}
-          style={{
-            padding: "0.5rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            color: "var(--text)",
-          }}
-        />
-      </label>
-      <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>終了</span>
-        <input
-          type="time"
-          value={endTime}
-          onChange={(e) => setEndTime(e.target.value)}
-          style={{
-            padding: "0.5rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "6px",
-            color: "var(--text)",
-          }}
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={submitting}
-        style={{
-          padding: "0.5rem 1rem",
-          background: "var(--accent)",
-          border: "none",
-          borderRadius: "6px",
-          color: "white",
-        }}
-      >
-        {submitting ? "追加中..." : "シフトを追加"}
-      </button>
-    </form>
-  );
-}
+import { AddShiftForm } from "./AddShiftForm";
 
 function dateKey(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
 export default function AdminPage() {
-  const [orgs, setOrgs] = useState<Organization[]>([]);
   const [organizationId, setOrganizationId] = useState("");
-  const [users, setUsers] = useState<User[]>([]);
-  const [days, setDays] = useState<ScheduleDay[]>([]);
-  const [warnings, setWarnings] = useState<ScheduleWarning[]>([]);
   const [rangeStart, setRangeStart] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -173,57 +30,36 @@ export default function AdminPage() {
     d.setDate(0);
     return dateKey(d);
   });
-  const [loading, setLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  const loadOrgs = useCallback(async () => {
-    try {
-      const list = await api.organizations.list();
-      setOrgs(list);
-      if (list.length > 0 && !organizationId) setOrganizationId(list[0].id);
-    } catch {
-      setOrgs([]);
-    }
-  }, [organizationId]);
+  // Fetch Organizations
+  const { data: orgs } = useSWR("orgs", api.organizations.list, {
+    onSuccess: (data) => {
+      if (data.length > 0 && !organizationId) setOrganizationId(data[0].id);
+    },
+  });
 
-  useEffect(() => {
-    loadOrgs();
-  }, [loadOrgs]);
+  // Fetch Users
+  const { data: users } = useSWR(
+    organizationId ? ["users", organizationId] : null,
+    ([, orgId]) => api.users.list(orgId)
+  );
 
-  const loadUsers = useCallback(async () => {
-    if (!organizationId) return;
-    try {
-      const list = await api.users.list(organizationId);
-      setUsers(list);
-    } catch {
-      setUsers([]);
-    }
-  }, [organizationId]);
+  // Fetch Schedule Data
+  const { data: daysData, mutate: mutateDays } = useSWR(
+    organizationId ? ["scheduleDays", organizationId, rangeStart, rangeEnd] : null,
+    ([, orgId, start, end]) => api.schedule.days(orgId, start, end)
+  );
 
-  useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+  const { data: warningsData, mutate: mutateWarnings } = useSWR(
+    organizationId ? ["scheduleWarnings", organizationId, rangeStart, rangeEnd] : null,
+    ([, orgId, start, end]) => api.schedule.warnings(orgId, start, end)
+  );
 
-  const loadSchedule = useCallback(async () => {
-    if (!organizationId) return;
-    setLoading(true);
-    try {
-      const [daysList, warningsList] = await Promise.all([
-        api.schedule.days(organizationId, rangeStart, rangeEnd),
-        api.schedule.warnings(organizationId, rangeStart, rangeEnd),
-      ]);
-      setDays(daysList);
-      setWarnings(warningsList);
-    } catch {
-      setDays([]);
-      setWarnings([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [organizationId, rangeStart, rangeEnd]);
-
-  useEffect(() => {
-    loadSchedule();
-  }, [loadSchedule]);
+  const refreshSchedule = async () => {
+    await mutateDays();
+    await mutateWarnings();
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -235,126 +71,121 @@ export default function AdminPage() {
     const assignmentId = active.data?.current?.assignmentId as string | undefined;
     const targetDate = over.data.current.date as string;
     if (!assignmentId) return;
-    setLoading(true);
+    
+    setIsUpdating(true);
     try {
       await api.shifts.update(assignmentId, { date: targetDate });
-      await loadSchedule();
+      await refreshSchedule();
     } finally {
-      setLoading(false);
+      setIsUpdating(false);
     }
   };
 
   return (
-    <div>
-      <h1 style={{ marginBottom: "1rem" }}>管理者</h1>
+    <div className="animate-fade-in pb-20">
+      
+      {/* Header Area */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold mb-2 tracking-tight">Admin Dashboard</h1>
+          <p className="text-textMuted">シフトの管理・スケジュールの編成を行います。</p>
+        </div>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "1rem",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>組織</span>
-          <select
-            value={organizationId}
-            onChange={(e) => setOrganizationId(e.target.value)}
-            style={{
-              padding: "0.5rem",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              color: "var(--text)",
-            }}
-          >
-            <option value="">選択</option>
-            {orgs.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>開始日</span>
-          <input
-            type="date"
-            value={rangeStart}
-            onChange={(e) => setRangeStart(e.target.value)}
-            style={{
-              padding: "0.5rem",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              color: "var(--text)",
-            }}
-          />
-        </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span>終了日</span>
-          <input
-            type="date"
-            value={rangeEnd}
-            onChange={(e) => setRangeEnd(e.target.value)}
-            style={{
-              padding: "0.5rem",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              color: "var(--text)",
-            }}
-          />
-        </label>
+        {/* Filters Panel */}
+        <div className="glass-card p-3 flex flex-wrap items-center gap-4 shadow-glass self-start md:self-auto w-full md:w-auto">
+          <label className="flex items-center gap-3 pl-2">
+            <span className="text-xs font-semibold text-textMuted uppercase tracking-wider">組織</span>
+            <div className="relative">
+              <select
+                value={organizationId}
+                onChange={(e) => setOrganizationId(e.target.value)}
+                className="appearance-none bg-black/40 border border-border/50 rounded-md py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
+              >
+                <option value="">組織を選択</option>
+                {orgs?.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-textMuted">
+                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </div>
+            </div>
+          </label>
+          <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block"></div>
+          <div className="flex items-center gap-2">
+             <input
+              type="date"
+              value={rangeStart}
+              onChange={(e) => setRangeStart(e.target.value)}
+              className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
+            />
+            <span className="text-textMuted text-xs font-bold">―</span>
+            <input
+              type="date"
+              value={rangeEnd}
+              onChange={(e) => setRangeEnd(e.target.value)}
+              className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
+            />
+          </div>
+        </div>
       </div>
 
-      {warnings.length > 0 && (
-        <div
-          style={{
-            padding: "0.75rem 1rem",
-            background: "rgba(245, 158, 11, 0.15)",
-            border: "1px solid var(--warn)",
-            borderRadius: "8px",
-            marginBottom: "1rem",
-          }}
-        >
-          <strong style={{ color: "var(--warn)" }}>⚠ 最低人数不足</strong>
-          <ul style={{ marginTop: "0.5rem", paddingLeft: "1.25rem" }}>
-            {warnings.map((w) => (
-              <li key={w.date}>
-                {new Date(w.date).toLocaleDateString("ja-JP")}：必要 {w.minRequired} 人 / 出勤 {w.assignedCount} 人
-              </li>
-            ))}
-          </ul>
+      {/* Warning Alert Banner */}
+      {warningsData && warningsData.length > 0 && (
+        <div className="glass-card p-4 mb-8 border-warn/30 bg-warn/10 flex items-start gap-4 animate-slide-up shadow-[0_4px_30px_rgba(251,191,36,0.15)]">
+           <div className="w-10 h-10 rounded-full bg-warn/20 flex flex-shrink-0 items-center justify-center">
+             <svg className="w-5 h-5 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+           </div>
+           <div>
+             <h4 className="text-warn font-bold text-lg mb-1">最低人員不足の警告</h4>
+             <p className="text-sm text-foreground/80 mb-3">以下の日程で必要なスタッフ数が満たされていません。シフトを調整してください。</p>
+             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+               {warningsData.map((w) => (
+                 <li key={w.date} className="flex items-center gap-2 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
+                   <span className="font-semibold text-foreground">{new Date(w.date).toLocaleDateString("ja-JP", { month: 'short', day: 'numeric' })}</span>
+                   <span className="text-xs text-textMuted ml-auto">
+                     出勤 <strong className="text-warn text-sm">{w.assignedCount}</strong> / {w.minRequired}
+                   </span>
+                 </li>
+               ))}
+             </ul>
+           </div>
         </div>
       )}
 
-      {loading && <p style={{ color: "var(--text-muted)" }}>読み込み中...</p>}
-
-      {organizationId && users.length > 0 && (
-        <AddShiftForm
-          organizationId={organizationId}
-          users={users}
-          rangeStart={rangeStart}
-          rangeEnd={rangeEnd}
-          onAdded={loadSchedule}
-        />
+      {isUpdating && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-accent/50 bg-accent/10 flex items-center gap-3 shadow-glow rounded-full">
+           <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
+           <span className="text-sm font-medium text-accent">更新を保存中...</span>
+        </div>
       )}
 
-      {organizationId && (
+      {organizationId && users && users.length > 0 && (
+         <AddShiftForm
+           organizationId={organizationId}
+           users={users}
+           rangeStart={rangeStart}
+           rangeEnd={rangeEnd}
+           onAdded={refreshSchedule}
+         />
+      )}
+
+      {organizationId && daysData && (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <AdminBoard
-            days={days}
-            users={users}
-            organizationId={organizationId}
-            onUpdateMinRequired={async (date, minRequired) => {
-              await api.schedule.setMinRequired(date, organizationId, minRequired);
-              await loadSchedule();
-            }}
-            onRefresh={loadSchedule}
-          />
+          <div className="animate-slide-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
+            <AdminBoard
+              days={daysData}
+              users={users || []}
+              organizationId={organizationId}
+              onUpdateMinRequired={async (date, minRequired) => {
+                await api.schedule.setMinRequired(date, organizationId, minRequired);
+                await refreshSchedule();
+              }}
+              onRefresh={refreshSchedule}
+            />
+          </div>
         </DndContext>
       )}
     </div>

@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"], display: 'swap' });
 
 export const metadata: Metadata = {
   title: "シフト管理",
-  description: "バイト・アルバイトのシフト管理アプリ",
+  description: "モダンなバイト・アルバイトのシフト管理アプリ",
 };
 
 export default function RootLayout({
@@ -12,18 +15,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body>
-        <header style={{ borderBottom: "1px solid var(--border)", padding: "0.75rem 1rem" }}>
-          <nav style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-            <a href="/" style={{ fontWeight: 700, textDecoration: "none" }}>
-              シフト管理
+    <html lang="ja" className={inter.className}>
+      <body className="flex flex-col min-h-screen">
+        <header className="fixed top-0 w-full z-50 px-6 py-4">
+          <div className="max-w-6xl mx-auto glass-card px-6 py-3 flex items-center justify-between">
+            <a href="/" className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-400 no-underline hover:opacity-80 transition-opacity">
+              ShiftManager
             </a>
-            <a href="/my-shifts">自分のシフト</a>
-            <a href="/admin">管理者</a>
-          </nav>
+            <nav className="flex gap-6 items-center">
+              <a href="/my-shifts" className="text-sm font-medium text-textMuted hover:text-white transition-colors">
+                自分のシフト
+              </a>
+              <a href="/admin" className="text-sm font-medium text-textMuted hover:text-white transition-colors">
+                管理者
+              </a>
+            </nav>
+          </div>
         </header>
-        <main style={{ padding: "1rem", minHeight: "calc(100vh - 52px)" }}>{children}</main>
+        {/* top padding accounts for fixed header */}
+        <main className="flex-1 w-full max-w-6xl mx-auto px-6 pt-32 pb-12 animate-fade-in relative z-10">
+          {children}
+        </main>
       </body>
     </html>
   );

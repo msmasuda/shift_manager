@@ -12,11 +12,11 @@ interface AdminBoardProps {
 }
 
 function formatDate(d: string) {
-  return new Date(d).toLocaleDateString("ja-JP", {
-    month: "short",
-    day: "numeric",
-    weekday: "short",
-  });
+  const dt = new Date(d);
+  return {
+    monthDay: dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }),
+    weekday: dt.toLocaleDateString("ja-JP", { weekday: "short" })
+  };
 }
 
 function DraggableCard({
@@ -36,24 +36,29 @@ function DraggableCard({
     id,
     data: { assignmentId },
   });
+  
   return (
     <div
       ref={setNodeRef}
       {...listeners}
       {...attributes}
-      style={{
-        padding: "0.5rem 0.75rem",
-        background: isDragging ? "var(--accent)" : "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "6px",
-        marginBottom: "0.5rem",
-        cursor: "grab",
-        opacity: isDragging ? 0.8 : 1,
-      }}
+      className={`glass-card p-3 mb-3 cursor-grab flex flex-col gap-1.5 hover:border-accent/50 group relative
+        ${isDragging ? "opacity-90 ring-2 ring-accent shadow-[0_10px_40px_rgba(99,102,241,0.3)] scale-[1.02] z-50 rotate-1" : ""}
+      `}
+      style={{ touchAction: 'none' }}
     >
-      <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{userName}</div>
-      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-        {startTime} ～ {endTime}
+      {/* Visual drag handle indicator */}
+      <div className="absolute left-2 top-0 bottom-0 w-1 flex flex-col justify-center gap-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+      </div>
+      
+      <div className="pl-2 font-semibold text-sm text-foreground truncate select-none">{userName}</div>
+      <div className="pl-2 flex items-center gap-2">
+        <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none">
+          {startTime} - {endTime}
+        </div>
       </div>
     </div>
   );
@@ -80,59 +85,80 @@ function DayColumn({
   });
   const uniqueCount = new Set(assignments.map((a) => a.userId)).size;
   const insufficient = uniqueCount < minRequired;
+  const formattedDate = formatDate(date);
 
   return (
     <div
       ref={setNodeRef}
-      style={{
-        flex: "1",
-        minWidth: "160px",
-        maxWidth: "220px",
-        padding: "0.75rem",
-        background: isOver ? "rgba(99, 102, 241, 0.2)" : "var(--surface)",
-        border: `1px solid ${insufficient ? "var(--warn)" : "var(--border)"}`,
-        borderRadius: "8px",
-      }}
+      className={`flex-1 min-w-[200px] max-w-[280px] rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
+        ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" : 
+          insufficient ? "bg-surface/40 border-warn/30" : "bg-surface/30 border-border"
+        }`}
     >
-      <div style={{ marginBottom: "0.5rem", fontWeight: 600, fontSize: "0.875rem" }}>
-        {formatDate(date)}
-      </div>
-      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>最低人数</span>
-        <input
-          type="number"
-          min={0}
-          value={minRequired}
-          onChange={async (e) => {
-            const v = parseInt(e.target.value, 10);
-            if (!isNaN(v) && v >= 0) await onUpdateMinRequired(date, v);
-          }}
-          style={{
-            width: "3rem",
-            padding: "0.25rem",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "4px",
-            color: "var(--text)",
-          }}
-        />
-      </label>
-      {insufficient && (
-        <div style={{ fontSize: "0.75rem", color: "var(--warn)", marginBottom: "0.5rem" }}>
-          ⚠ {uniqueCount} / {minRequired} 人
+      {/* Column Header */}
+      <div className={`p-4 border-b ${insufficient ? 'border-warn/20 bg-warn/5' : 'border-border/50 bg-black/20'}`}>
+        <div className="flex items-end justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-xl font-bold tracking-tight ${insufficient ? 'text-warn' : 'text-foreground'}`}>
+              {formattedDate.monthDay}
+            </span>
+            <span className={`text-xs font-medium uppercase ${insufficient ? 'text-warn/80' : 'text-textMuted'}`}>
+              {formattedDate.weekday}
+            </span>
+          </div>
+          
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] text-textMuted uppercase font-semibold mb-1">最低人数</span>
+            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${insufficient ? 'border-warn/50' : 'border-transparent hover:border-border transition-colors'} bg-black/30`}>
+              <button 
+                className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
+              >-</button>
+              <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
+              <button 
+                className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                onClick={() => onUpdateMinRequired(date, minRequired + 1)}
+              >+</button>
+            </div>
+          </div>
         </div>
-      )}
-      <div style={{ minHeight: "2rem" }}>
-        {assignments.map((a) => (
-          <DraggableCard
-            key={a.id}
-            id={a.id}
-            assignmentId={a.id}
-            userName={a.user?.name ?? a.userId}
-            startTime={a.startTime}
-            endTime={a.endTime}
-          />
-        ))}
+        
+        {/* Status bar/warning */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
+               <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
+            ))}
+          </div>
+          {insufficient && minRequired > 0 && (
+            <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+              {uniqueCount} / {minRequired} 定員割れ
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Cards Container */}
+      <div className="p-3 flex-1 min-h-[12rem] bg-gradient-to-b from-transparent to-black/10">
+        {assignments.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-textMuted/30 pt-8 pb-4">
+            <svg className="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+            <span className="text-xs font-medium">ドラッグして追加</span>
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {assignments.map((a) => (
+              <DraggableCard
+                key={a.id}
+                id={a.id}
+                assignmentId={a.id}
+                userName={a.user?.name ?? a.userId}
+                startTime={a.startTime}
+                endTime={a.endTime}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -147,21 +173,18 @@ export function AdminBoard({
 }: AdminBoardProps) {
   if (days.length === 0) {
     return (
-      <p style={{ color: "var(--text-muted)" }}>
-        この期間にスケジュールがありません。API でシフトを追加するか、組織・日付を変更してください。
-      </p>
+      <div className="glass-card p-12 mt-8 text-center border-dashed items-center flex flex-col justify-center">
+        <svg className="w-16 h-16 text-textMuted/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        <h3 className="text-xl font-bold mb-2">スケジュールがありません</h3>
+        <p className="text-textMuted">
+          指定された期間にシフトデータが見つかりません。<br/>上部のフォームから新しいシフトを追加してください。
+        </p>
+      </div>
     );
   }
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "1rem",
-        marginTop: "1rem",
-      }}
-    >
+    <div className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x" style={{ scrollbarWidth: 'thin' }}>
       {days.map((d) => (
         <DayColumn
           key={d.id}

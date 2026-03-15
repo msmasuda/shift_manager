@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
+import { z } from "zod";
 
 export const orgRouter = Router();
+
+const createOrgSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+});
 
 // 開発用: 組織一覧（認証実装時に organizationId はセッションから取得）
 orgRouter.get("/", async (_req, res) => {
@@ -10,10 +15,7 @@ orgRouter.get("/", async (_req, res) => {
 });
 
 orgRouter.post("/", async (req, res) => {
-  const { name } = req.body;
-  if (!name || typeof name !== "string") {
-    return res.status(400).json({ error: "name is required" });
-  }
+  const { name } = createOrgSchema.parse(req.body);
   const org = await prisma.organization.create({ data: { name } });
   res.status(201).json(org);
 });
