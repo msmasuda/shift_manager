@@ -1,9 +1,9 @@
 import type { User, ScheduleDay, ShiftAssignment, ScheduleWarning } from "@/types";
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? (typeof window !== "undefined" ? "" : "http://localhost:3001");
+const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001");
+  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   const url = new URL(path, base);
   if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString());
@@ -12,7 +12,7 @@ async function get<T>(path: string, params?: Record<string, string>): Promise<T>
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001");
+  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -23,7 +23,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function put<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001");
+  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   const res = await fetch(`${base}${path}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -34,7 +34,7 @@ async function put<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function patch<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001");
+  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   const res = await fetch(`${base}${path}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -45,7 +45,7 @@ async function patch<T>(path: string, body: unknown): Promise<T> {
 }
 
 async function del(path: string): Promise<void> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3001");
+  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   const res = await fetch(`${base}${path}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await res.text());
 }
