@@ -2,13 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
-const createShiftSchema = z.object({
-  organizationId: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/),
-  userId: z.string().min(1),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/),
-});
+const createShiftSchema = z
+  .object({
+    organizationId: z.string().min(1),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/),
+    userId: z.string().min(1),
+    startTime: z.string().regex(/^\d{2}:\d{2}$/),
+    endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  })
+  .refine(({ startTime, endTime }) => startTime < endTime, {
+    message: "endTime must be after startTime",
+    path: ["endTime"],
+  });
 
 export async function POST(request: Request) {
   try {
@@ -20,13 +25,28 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid date" }, { status: 400 });
     }
 
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { organizationId: true } });
+    if (!user || user.organizationId !== organizationId) {
+      return NextResponse.json({ error: "User not found in organization" }, { status: 400 });
+    }
+
     const scheduleDay = await prisma.scheduleDay.upsert({
       where: {
         organizationId_date: { organizationId, date: dateObj },
       },
-      create: { organizationId, date: dateObj, minRequired: 1 },
+      create: { organizationId, date: dateObj, minRequired: 0 },
       update: {},
     });
+
+    const duplicate = await prisma.shiftAssignment.findFirst({
+      where: { scheduleDayId: scheduleDay.id, userId },
+    });
+    if (duplicate) {
+      return NextResponse.json(
+        { error: "このユーザーは既にこの日にアサインされています" },
+        { status: 409 }
+      );
+    }
 
     const assignment = await prisma.shiftAssignment.create({
       data: {

@@ -14,8 +14,8 @@ interface AdminBoardProps {
 function formatDate(d: string) {
   const dt = new Date(d);
   return {
-    monthDay: dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }),
-    weekday: dt.toLocaleDateString("ja-JP", { weekday: "short" })
+    monthDay: dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", timeZone: "UTC" }),
+    weekday: dt.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "UTC" })
   };
 }
 
@@ -36,7 +36,7 @@ function DraggableCard({
     id,
     data: { assignmentId },
   });
-  
+
   return (
     <div
       ref={setNodeRef}
@@ -53,7 +53,7 @@ function DraggableCard({
         <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
         <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
       </div>
-      
+
       <div className="pl-2 font-semibold text-sm text-foreground truncate select-none">{userName}</div>
       <div className="pl-2 flex items-center gap-2">
         <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none">
@@ -91,7 +91,7 @@ function DayColumn({
     <div
       ref={setNodeRef}
       className={`flex-1 min-w-[200px] max-w-[280px] rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
-        ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" : 
+        ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" :
           insufficient ? "bg-surface/40 border-warn/30" : "bg-surface/30 border-border"
         }`}
     >
@@ -106,23 +106,23 @@ function DayColumn({
               {formattedDate.weekday}
             </span>
           </div>
-          
+
           <div className="flex flex-col items-end">
             <span className="text-[10px] text-textMuted uppercase font-semibold mb-1">最低人数</span>
             <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${insufficient ? 'border-warn/50' : 'border-transparent hover:border-border transition-colors'} bg-black/30`}>
-              <button 
+              <button
                 className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
                 onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
               >-</button>
               <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
-              <button 
+              <button
                 className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
                 onClick={() => onUpdateMinRequired(date, minRequired + 1)}
               >+</button>
             </div>
           </div>
         </div>
-        
+
         {/* Status bar/warning */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
@@ -188,7 +188,7 @@ export function AdminBoard({
       {days.map((d) => (
         <DayColumn
           key={d.id}
-          date={typeof d.date === "string" ? d.date : new Date(d.date).toISOString().slice(0, 10)}
+          date={(typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10)}
           minRequired={d.minRequired}
           assignments={d.shiftAssignments ?? []}
           users={users}

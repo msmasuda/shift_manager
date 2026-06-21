@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 
 const querySchema = z.object({
   organizationId: z.string().min(1, "organizationId is required"),
@@ -60,6 +61,15 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "Validation Error", details: error.errors },
         { status: 400 }
+      );
+    }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このメールアドレスは既に登録されています" },
+        { status: 409 }
       );
     }
     return NextResponse.json(

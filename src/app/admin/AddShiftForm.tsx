@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import type { User } from "@/types";
 
@@ -24,6 +24,13 @@ export function AddShiftForm({
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("18:00");
   const [submitting, setSubmitting] = useState(false);
+
+  // Sync selected user when the org changes (users list replaces entirely)
+  useEffect(() => {
+    if (users.length > 0 && !users.find((u) => u.id === userId)) {
+      setUserId(users[0].id);
+    }
+  }, [users]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +61,7 @@ export function AddShiftForm({
         </div>
         <h3 className="font-bold text-lg text-foreground tracking-tight">シフトの追加</h3>
       </div>
-      
+
       <form onSubmit={handleSubmit} className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
           <label className="flex flex-col gap-1.5 focus-within:text-accent transition-colors">
@@ -68,7 +75,7 @@ export function AddShiftForm({
               className="styled-input"
             />
           </label>
-          
+
           <label className="flex flex-col gap-1.5 focus-within:text-accent transition-colors">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-textMuted group-focus-within:text-accent">Staff Member</span>
             <div className="relative">
@@ -88,7 +95,7 @@ export function AddShiftForm({
               </div>
             </div>
           </label>
-          
+
           <label className="flex flex-col gap-1.5 focus-within:text-accent transition-colors">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-textMuted group-focus-within:text-accent">Start Time</span>
             <input
@@ -98,7 +105,7 @@ export function AddShiftForm({
               className="styled-input"
             />
           </label>
-          
+
           <label className="flex flex-col gap-1.5 focus-within:text-accent transition-colors">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-textMuted group-focus-within:text-accent">End Time</span>
             <input
@@ -109,7 +116,7 @@ export function AddShiftForm({
             />
           </label>
         </div>
-        
+
         <div className="mt-6 flex justify-end">
           <button
             type="submit"

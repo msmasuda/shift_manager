@@ -57,8 +57,7 @@ export default function AdminPage() {
   );
 
   const refreshSchedule = async () => {
-    await mutateDays();
-    await mutateWarnings();
+    await Promise.all([mutateDays(), mutateWarnings()]);
   };
 
   const sensors = useSensors(

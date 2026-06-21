@@ -6,19 +6,22 @@ import { api } from "@/lib/api";
 
 const USER_ID_KEY = "shift_manager_user_id";
 
+// Use timeZone: "UTC" because dates are stored as UTC midnight calendar dates.
+// Without this, users in UTC- zones see the previous day.
 function formatDate(d: string) {
   const dt = new Date(d);
   return dt.toLocaleDateString("ja-JP", {
     month: "numeric",
     day: "numeric",
     weekday: "short",
+    timeZone: "UTC",
   });
 }
 
 function formatDayOfWeek(d: string) {
   const dt = new Date(d);
   const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  return weekdays[dt.getDay()];
+  return weekdays[dt.getUTCDay()];
 }
 
 export default function MyShiftsPage() {
@@ -50,13 +53,13 @@ export default function MyShiftsPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      
+
       <div className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold mb-2 tracking-tight">My Shifts</h1>
           <p className="text-textMuted">直近のあなたのシフトスケジュールです。</p>
         </div>
-        
+
         {savedUserId && (
           <div className="glass-card px-4 py-2 flex items-center gap-3 animate-fade-in self-start md:self-auto">
             <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
@@ -130,7 +133,7 @@ export default function MyShiftsPage() {
             <div className="relative">
               {/* Timeline graphic */}
               <div className="absolute left-[39px] top-6 bottom-6 w-[2px] bg-border/50 hidden sm:block rounded-full"></div>
-              
+
               <ul className="flex flex-col gap-4">
                 {shifts.map((s, idx) => (
                   <li
@@ -143,10 +146,16 @@ export default function MyShiftsPage() {
 
                     {/* Date Block */}
                     <div className="flex sm:flex-col items-center sm:items-end justify-center sm:w-24 gap-2 sm:gap-0 shrink-0">
-                      <span className="text-2xl font-black text-foreground">{new Date(s.scheduleDay?.date ?? "").getDate()}</span>
+                      <span className="text-2xl font-black text-foreground">
+                        {new Date(s.scheduleDay?.date ?? "").getUTCDate()}
+                      </span>
                       <div className="flex sm:flex-col items-center sm:items-end uppercase">
-                        <span className="text-xs font-semibold text-accent tracking-widest">{formatDayOfWeek(s.scheduleDay?.date ?? "")}</span>
-                        <span className="text-[10px] text-textMuted tracking-wider">{new Date(s.scheduleDay?.date ?? "").toLocaleString('en-US', { month: 'short'})}</span>
+                        <span className="text-xs font-semibold text-accent tracking-widest">
+                          {formatDayOfWeek(s.scheduleDay?.date ?? "")}
+                        </span>
+                        <span className="text-[10px] text-textMuted tracking-wider">
+                          {new Date(s.scheduleDay?.date ?? "").toLocaleString('en-US', { month: 'short', timeZone: 'UTC' })}
+                        </span>
                       </div>
                     </div>
 
@@ -160,7 +169,7 @@ export default function MyShiftsPage() {
                           <span className="text-xl font-bold tracking-tight text-foreground">{s.endTime}</span>
                         </div>
                       </div>
-                      
+
                       {/* Optional metadata (e.g duration) */}
                       <div className="hidden md:flex flex-col items-end">
                         <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-textMuted font-medium">
