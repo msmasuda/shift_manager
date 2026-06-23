@@ -1,4 +1,11 @@
-export default function Home() {
+import { auth } from "@/auth";
+import { redirect } from "next/navigation";
+
+export default async function Home() {
+  const session = await auth();
+  if (session?.user?.role === "ADMIN") redirect("/admin");
+  if (session?.user) redirect("/my-shifts");
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
       

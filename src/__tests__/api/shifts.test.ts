@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Prisma } from "@prisma/client";
 
-// Mock prisma before importing route handlers
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
@@ -14,6 +13,12 @@ vi.mock("@/lib/prisma", () => ({
       delete: vi.fn(),
     },
   },
+}));
+
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue({
+    user: { id: "user-1", organizationId: "org-1", role: "ADMIN" },
+  }),
 }));
 
 import { prisma } from "@/lib/prisma";
@@ -68,7 +73,6 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 describe("POST /api/shifts", () => {
   const validBody = {
-    organizationId: "org-1",
     date: "2024-06-15",
     userId: "user-1",
     startTime: "09:00",

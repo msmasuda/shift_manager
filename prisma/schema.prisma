@@ -5,7 +5,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Organization {
@@ -46,13 +45,13 @@ model ScheduleDay {
 
 // シフト割り当て（誰がいつ〜いつ入るか）
 model ShiftAssignment {
-  id             String   @id @default(cuid())
+  id            String   @id @default(cuid())
   scheduleDayId String
   scheduleDay   ScheduleDay @relation(fields: [scheduleDayId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  startTime      String   // "09:00" 形式
-  endTime        String   // "18:00" 形式
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startTime     String   // "09:00" 形式
+  endTime       String   // "18:00" 形式
   @@index([scheduleDayId])
   @@index([userId])
 }

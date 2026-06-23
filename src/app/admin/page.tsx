@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import {
   DndContext,
@@ -18,7 +19,9 @@ function dateKey(d: Date) {
 }
 
 export default function AdminPage() {
-  const [organizationId, setOrganizationId] = useState("");
+  const { data: session } = useSession();
+  const organizationId = session?.user?.organizationId ?? "";
+
   const [rangeStart, setRangeStart] = useState(() => {
     const d = new Date();
     d.setDate(1);
@@ -32,28 +35,19 @@ export default function AdminPage() {
   });
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Fetch Organizations
-  const { data: orgs } = useSWR("orgs", api.organizations.list, {
-    onSuccess: (data) => {
-      if (data.length > 0 && !organizationId) setOrganizationId(data[0].id);
-    },
-  });
-
-  // Fetch Users
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
-    ([, orgId]) => api.users.list(orgId)
+    () => api.users.list()
   );
 
-  // Fetch Schedule Data
   const { data: daysData, mutate: mutateDays } = useSWR(
     organizationId ? ["scheduleDays", organizationId, rangeStart, rangeEnd] : null,
-    ([, orgId, start, end]) => api.schedule.days(orgId, start, end)
+    () => api.schedule.days(rangeStart, rangeEnd)
   );
 
   const { data: warningsData, mutate: mutateWarnings } = useSWR(
     organizationId ? ["scheduleWarnings", organizationId, rangeStart, rangeEnd] : null,
-    ([, orgId, start, end]) => api.schedule.warnings(orgId, start, end)
+    () => api.schedule.warnings(rangeStart, rangeEnd)
   );
 
   const refreshSchedule = async () => {
@@ -70,7 +64,7 @@ export default function AdminPage() {
     const assignmentId = active.data?.current?.assignmentId as string | undefined;
     const targetDate = over.data.current.date as string;
     if (!assignmentId) return;
-    
+
     setIsUpdating(true);
     try {
       await api.shifts.update(assignmentId, { date: targetDate });
@@ -82,7 +76,7 @@ export default function AdminPage() {
 
   return (
     <div className="animate-fade-in pb-20">
-      
+
       {/* Header Area */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
         <div>
@@ -90,31 +84,10 @@ export default function AdminPage() {
           <p className="text-textMuted">シフトの管理・スケジュールの編成を行います。</p>
         </div>
 
-        {/* Filters Panel */}
+        {/* Date Range Filter */}
         <div className="glass-card p-3 flex flex-wrap items-center gap-4 shadow-glass self-start md:self-auto w-full md:w-auto">
-          <label className="flex items-center gap-3 pl-2">
-            <span className="text-xs font-semibold text-textMuted uppercase tracking-wider">組織</span>
-            <div className="relative">
-              <select
-                value={organizationId}
-                onChange={(e) => setOrganizationId(e.target.value)}
-                className="appearance-none bg-black/40 border border-border/50 rounded-md py-1.5 pl-3 pr-8 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-              >
-                <option value="">組織を選択</option>
-                {orgs?.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-textMuted">
-                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              </div>
-            </div>
-          </label>
-          <div className="w-[1px] h-6 bg-border mx-1 hidden sm:block"></div>
           <div className="flex items-center gap-2">
-             <input
+            <input
               type="date"
               value={rangeStart}
               onChange={(e) => setRangeStart(e.target.value)}
@@ -142,7 +115,7 @@ export default function AdminPage() {
              <p className="text-sm text-foreground/80 mb-3">以下の日程で必要なスタッフ数が満たされていません。シフトを調整してください。</p>
              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                {warningsData.map((w) => (
-                 <li key={w.date} className="flex items-center gap-2 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
+                 <li key={w.date as unknown as string} className="flex items-center gap-2 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
                    <span className="font-semibold text-foreground">{new Date(w.date).toLocaleDateString("ja-JP", { month: 'short', day: 'numeric' })}</span>
                    <span className="text-xs text-textMuted ml-auto">
                      出勤 <strong className="text-warn text-sm">{w.assignedCount}</strong> / {w.minRequired}
@@ -163,7 +136,6 @@ export default function AdminPage() {
 
       {organizationId && users && users.length > 0 && (
          <AddShiftForm
-           organizationId={organizationId}
            users={users}
            rangeStart={rangeStart}
            rangeEnd={rangeEnd}
@@ -179,7 +151,7 @@ export default function AdminPage() {
               users={users || []}
               organizationId={organizationId}
               onUpdateMinRequired={async (date, minRequired) => {
-                await api.schedule.setMinRequired(date, organizationId, minRequired);
+                await api.schedule.setMinRequired(date, minRequired);
                 await refreshSchedule();
               }}
               onRefresh={refreshSchedule}
