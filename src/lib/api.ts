@@ -56,24 +56,22 @@ export const api = {
     create: (name: string) => post<{ id: string; name: string }>("/api/organizations", { name }),
   },
   users: {
-    list: (organizationId: string) =>
-      get<User[]>("/api/users", { organizationId }),
-    create: (data: { organizationId: string; email: string; name: string; role?: string }) =>
+    list: () => get<User[]>("/api/users"),
+    create: (data: { email: string; name: string; role?: string }) =>
       post<User>("/api/users", data),
   },
   schedule: {
-    days: (organizationId: string, from: string, to: string) =>
-      get<ScheduleDay[]>("/api/schedule/days", { organizationId, from, to }),
-    setMinRequired: (date: string, organizationId: string, minRequired: number) =>
-      put<ScheduleDay>(`/api/schedule/days/${date}`, { organizationId, minRequired }),
-    warnings: (organizationId: string, from: string, to: string) =>
-      get<ScheduleWarning[]>("/api/schedule/warnings", { organizationId, from, to }),
+    days: (from: string, to: string) =>
+      get<ScheduleDay[]>("/api/schedule/days", { from, to }),
+    setMinRequired: (date: string, minRequired: number) =>
+      put<ScheduleDay>(`/api/schedule/days/${date}`, { minRequired }),
+    warnings: (from: string, to: string) =>
+      get<ScheduleWarning[]>("/api/schedule/warnings", { from, to }),
   },
   shifts: {
-    my: (userId: string, from?: string, to?: string) =>
-      get<ShiftAssignment[]>("/api/shifts/my", { userId, ...(from && { from }), ...(to && { to }) }),
+    my: (from?: string, to?: string) =>
+      get<ShiftAssignment[]>("/api/shifts/my", { ...(from && { from }), ...(to && { to }) }),
     create: (data: {
-      organizationId: string;
       date: string;
       userId: string;
       startTime: string;

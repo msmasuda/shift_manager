@@ -7,6 +7,12 @@ vi.mock("@/lib/prisma", () => ({
   },
 }));
 
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue({
+    user: { id: "admin-1", organizationId: "org-1", role: "ADMIN" },
+  }),
+}));
+
 import { prisma } from "@/lib/prisma";
 import { POST } from "@/app/api/users/route";
 
@@ -19,7 +25,6 @@ function makePostRequest(body: unknown) {
 }
 
 const validBody = {
-  organizationId: "org-1",
   email: "alice@example.com",
   name: "Alice",
 };

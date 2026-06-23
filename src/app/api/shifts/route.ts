@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { z } from "zod";
 
 const createShiftSchema = z
   .object({
-    organizationId: z.string().min(1),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/),
     userId: z.string().min(1),
     startTime: z.string().regex(/^\d{2}:\d{2}$/),
@@ -17,8 +17,14 @@ const createShiftSchema = z
 
 export async function POST(request: Request) {
   try {
+    const session = await auth();
+    if (!session?.user?.organizationId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { organizationId } = session.user;
+
     const body = await request.json();
-    const { organizationId, date, userId, startTime, endTime } = createShiftSchema.parse(body);
+    const { date, userId, startTime, endTime } = createShiftSchema.parse(body);
     const dateObj = new Date(date);
 
     if (isNaN(dateObj.getTime())) {

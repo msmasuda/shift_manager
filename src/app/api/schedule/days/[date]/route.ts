@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { z } from "zod";
 
 const putDayBodySchema = z.object({
-  organizationId: z.string().min(1),
   minRequired: z.number().int().min(0).or(z.string().regex(/^\d+$/).transform(Number)),
 });
 
@@ -12,9 +12,15 @@ export async function PUT(
   { params }: { params: Promise<{ date: string }> }
 ) {
   try {
+    const session = await auth();
+    if (!session?.user?.organizationId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { organizationId } = session.user;
+
     const { date: dateStr } = await params;
     const body = await request.json();
-    const { organizationId, minRequired } = putDayBodySchema.parse(body);
+    const { minRequired } = putDayBodySchema.parse(body);
 
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {

@@ -5,7 +5,6 @@ import { api } from "@/lib/api";
 import type { User } from "@/types";
 
 interface AddShiftFormProps {
-  organizationId: string;
   users: User[];
   rangeStart: string;
   rangeEnd: string;
@@ -13,7 +12,6 @@ interface AddShiftFormProps {
 }
 
 export function AddShiftForm({
-  organizationId,
   users,
   rangeStart,
   rangeEnd,
@@ -38,7 +36,6 @@ export function AddShiftForm({
     setSubmitting(true);
     try {
       await api.shifts.create({
-        organizationId,
         date,
         userId,
         startTime,
