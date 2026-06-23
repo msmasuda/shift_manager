@@ -26,12 +26,6 @@ export default function RootLayout({
                 ShiftManager
               </a>
               <nav className="flex gap-6 items-center">
-                <a href="/my-shifts" className="text-sm font-medium text-textMuted hover:text-white transition-colors">
-                  自分のシフト
-                </a>
-                <a href="/admin" className="text-sm font-medium text-textMuted hover:text-white transition-colors">
-                  管理者
-                </a>
                 <NavAuth />
               </nav>
             </div>
