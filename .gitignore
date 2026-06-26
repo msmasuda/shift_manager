@@ -7,3 +7,5 @@ dist
 .DS_Store
 tsconfig.tsbuildinfo
 test-results/
+playwright-report/
+e2e/.auth/*.json

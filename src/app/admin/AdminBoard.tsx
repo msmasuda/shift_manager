@@ -67,6 +67,7 @@ function DraggableCard({
       ref={setNodeRef}
       {...(isEditing ? {} : listeners)}
       {...(isEditing ? {} : attributes)}
+      data-testid="shift-card"
       className={`glass-card p-3 mb-3 flex flex-col gap-1.5 hover:border-accent/50 group relative
         ${isEditing ? "cursor-default ring-1 ring-accent/30" : "cursor-grab"}
         ${isDragging ? "opacity-90 ring-2 ring-accent shadow-[0_10px_40px_rgba(99,102,241,0.3)] scale-[1.02] z-50 rotate-1" : ""}
@@ -85,6 +86,7 @@ function DraggableCard({
       {/* Edit button */}
       {!isEditing && (
         <button
+          data-testid="edit-shift-btn"
           className="absolute right-2 top-2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all"
           onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
         >
@@ -249,6 +251,7 @@ function DayColumn({
               return (
                 <div
                   key={u.id}
+                  data-testid="holiday-card"
                   className="glass-card p-3 mb-3 flex flex-col gap-1.5 opacity-40"
                 >
                   <div className="pl-2 font-semibold text-sm text-foreground truncate">{u.name}</div>
