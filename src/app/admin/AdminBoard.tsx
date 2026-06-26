@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { api } from "@/lib/api";
 import type { ScheduleDay, User } from "@/types";
 
 interface AdminBoardProps {
@@ -25,41 +27,115 @@ function DraggableCard({
   userName,
   startTime,
   endTime,
+  onUpdate,
 }: {
   id: string;
   assignmentId: string;
   userName: string;
   startTime: string;
   endTime: string;
+  onUpdate: (startTime: string, endTime: string) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { assignmentId },
   });
 
+  const [isEditing, setIsEditing] = useState(false);
+  const [editStart, setEditStart] = useState(startTime);
+  const [editEnd, setEditEnd] = useState(endTime);
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onUpdate(editStart, editEnd);
+      setIsEditing(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditStart(startTime);
+    setEditEnd(endTime);
+    setIsEditing(false);
+  };
+
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={`glass-card p-3 mb-3 cursor-grab flex flex-col gap-1.5 hover:border-accent/50 group relative
+      {...(isEditing ? {} : listeners)}
+      {...(isEditing ? {} : attributes)}
+      className={`glass-card p-3 mb-3 flex flex-col gap-1.5 hover:border-accent/50 group relative
+        ${isEditing ? "cursor-default ring-1 ring-accent/30" : "cursor-grab"}
         ${isDragging ? "opacity-90 ring-2 ring-accent shadow-[0_10px_40px_rgba(99,102,241,0.3)] scale-[1.02] z-50 rotate-1" : ""}
       `}
       style={{ touchAction: 'none' }}
     >
-      {/* Visual drag handle indicator */}
-      <div className="absolute left-2 top-0 bottom-0 w-1 flex flex-col justify-center gap-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
-        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
-        <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
-      </div>
+      {/* Drag handle — hidden while editing */}
+      {!isEditing && (
+        <div className="absolute left-2 top-0 bottom-0 w-1 flex flex-col justify-center gap-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+          <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+          <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
+        </div>
+      )}
+
+      {/* Edit button */}
+      {!isEditing && (
+        <button
+          className="absolute right-2 top-2 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-white/10 transition-all"
+          onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+        >
+          <svg className="w-3.5 h-3.5 text-textMuted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+          </svg>
+        </button>
+      )}
 
       <div className="pl-2 font-semibold text-sm text-foreground truncate select-none">{userName}</div>
-      <div className="pl-2 flex items-center gap-2">
-        <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none">
-          {startTime} - {endTime}
+
+      {isEditing ? (
+        <div className="pl-2 flex flex-col gap-2">
+          <div className="flex items-center gap-1">
+            <input
+              type="time"
+              value={editStart}
+              onChange={(e) => setEditStart(e.target.value)}
+              className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+            />
+            <span className="text-textMuted text-[10px]">―</span>
+            <input
+              type="time"
+              value={editEnd}
+              onChange={(e) => setEditEnd(e.target.value)}
+              className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-1 rounded bg-accent/20 hover:bg-accent/30 text-accent text-[11px] font-bold transition-colors disabled:opacity-50"
+            >
+              {saving ? "保存中..." : "保存"}
+            </button>
+            <button
+              onClick={handleCancel}
+              className="flex-1 py-1 rounded bg-white/5 hover:bg-white/10 text-textMuted text-[11px] font-bold transition-colors"
+            >
+              キャンセル
+            </button>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="pl-2 flex items-center gap-2">
+          <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none">
+            {startTime} - {endTime}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -158,6 +234,10 @@ function DayColumn({
                     userName={u.name}
                     startTime={a.startTime}
                     endTime={a.endTime}
+                    onUpdate={async (startTime, endTime) => {
+                      await api.shifts.update(a.id, { startTime, endTime });
+                      await onRefresh();
+                    }}
                   />
                 );
               }
