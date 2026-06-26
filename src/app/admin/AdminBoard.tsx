@@ -98,20 +98,25 @@ function DraggableCard({
 
       {isEditing ? (
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-1">
-            <input
-              type="time"
-              value={editStart}
-              onChange={(e) => setEditStart(e.target.value)}
-              className="min-w-0 flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
-            />
-            <span className="text-textMuted text-[10px] shrink-0">―</span>
-            <input
-              type="time"
-              value={editEnd}
-              onChange={(e) => setEditEnd(e.target.value)}
-              className="min-w-0 flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
-            />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-textMuted w-6 shrink-0">開始</span>
+              <input
+                type="time"
+                value={editStart}
+                onChange={(e) => setEditStart(e.target.value)}
+                className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-textMuted w-6 shrink-0">終了</span>
+              <input
+                type="time"
+                value={editEnd}
+                onChange={(e) => setEditEnd(e.target.value)}
+                className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+              />
+            </div>
           </div>
           <div className="flex gap-1.5">
             <button
