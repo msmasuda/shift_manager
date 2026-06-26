@@ -140,23 +140,37 @@ function DayColumn({
 
       {/* Cards Container */}
       <div className="p-3 flex-1 min-h-[12rem] bg-gradient-to-b from-transparent to-black/10">
-        {assignments.length === 0 ? (
+        {users.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-textMuted/30 pt-8 pb-4">
             <svg className="w-8 h-8 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-            <span className="text-xs font-medium">ドラッグして追加</span>
+            <span className="text-xs font-medium">ユーザーがいません</span>
           </div>
         ) : (
           <div className="flex flex-col">
-            {assignments.map((a) => (
-              <DraggableCard
-                key={a.id}
-                id={a.id}
-                assignmentId={a.id}
-                userName={a.user?.name ?? a.userId}
-                startTime={a.startTime}
-                endTime={a.endTime}
-              />
-            ))}
+            {users.map((u) => {
+              const a = assignments.find((a) => a.userId === u.id);
+              if (a) {
+                return (
+                  <DraggableCard
+                    key={a.id}
+                    id={a.id}
+                    assignmentId={a.id}
+                    userName={u.name}
+                    startTime={a.startTime}
+                    endTime={a.endTime}
+                  />
+                );
+              }
+              return (
+                <div
+                  key={u.id}
+                  className="mb-3 px-3 py-2.5 rounded-lg border border-border/20 bg-black/10 flex items-center justify-between"
+                >
+                  <span className="text-sm text-textMuted/70 truncate">{u.name}</span>
+                  <span className="text-[10px] text-textMuted/40 bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-full shrink-0 ml-2">休み</span>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
+import type { User } from "@/types";
 
 function dateKey(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -33,6 +34,11 @@ export default function SchedulePage() {
     d.setDate(0);
     return dateKey(d);
   });
+
+  const { data: users } = useSWR(
+    organizationId ? ["users", organizationId] : null,
+    () => api.users.list()
+  );
 
   const { data: daysData } = useSWR(
     organizationId ? ["scheduleDays", organizationId, rangeStart, rangeEnd] : null,
@@ -102,23 +108,38 @@ export default function SchedulePage() {
                 </div>
 
                 <div className="p-3 flex-1 min-h-[8rem]">
-                  {!d.shiftAssignments || d.shiftAssignments.length === 0 ? (
+                  {!users || users.length === 0 ? (
                     <p className="text-xs text-textMuted/40 text-center pt-6">なし</p>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      {d.shiftAssignments.map((a) => (
-                        <div
-                          key={a.id}
-                          className={`p-2.5 rounded-lg border
-                            ${a.userId === currentUserId
-                              ? "bg-accent/10 border-accent/30"
-                              : "bg-black/20 border-border/30"
-                            }`}
-                        >
-                          <div className="font-semibold text-sm truncate text-foreground">{a.user?.name ?? "—"}</div>
-                          <div className="text-[11px] text-textMuted mt-0.5">{a.startTime} - {a.endTime}</div>
-                        </div>
-                      ))}
+                      {users.map((u: User) => {
+                        const a = d.shiftAssignments?.find((sa) => sa.userId === u.id);
+                        if (a) {
+                          return (
+                            <div
+                              key={u.id}
+                              className={`p-2.5 rounded-lg border
+                                ${u.id === currentUserId
+                                  ? "bg-accent/10 border-accent/30"
+                                  : "bg-black/20 border-border/30"
+                                }`}
+                            >
+                              <div className="font-semibold text-sm truncate text-foreground">{u.name}</div>
+                              <div className="text-[11px] text-textMuted mt-0.5">{a.startTime} - {a.endTime}</div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div
+                            key={u.id}
+                            className={`p-2.5 rounded-lg border border-border/20 flex items-center justify-between
+                              ${u.id === currentUserId ? "bg-accent/5" : "bg-black/10"}`}
+                          >
+                            <div className={`text-sm truncate ${u.id === currentUserId ? "text-foreground/70" : "text-textMuted/60"}`}>{u.name}</div>
+                            <span className="text-[10px] text-textMuted/40 bg-white/5 px-1.5 py-0.5 rounded-full shrink-0 ml-2">休み</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
