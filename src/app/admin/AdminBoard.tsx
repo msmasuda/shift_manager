@@ -97,20 +97,20 @@ function DraggableCard({
       <div className="pl-2 font-semibold text-sm text-foreground truncate select-none">{userName}</div>
 
       {isEditing ? (
-        <div className="pl-2 flex flex-col gap-2">
+        <div className="flex flex-col gap-2">
           <div className="flex items-center gap-1">
             <input
               type="time"
               value={editStart}
               onChange={(e) => setEditStart(e.target.value)}
-              className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+              className="min-w-0 flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
             />
-            <span className="text-textMuted text-[10px]">―</span>
+            <span className="text-textMuted text-[10px] shrink-0">―</span>
             <input
               type="time"
               value={editEnd}
               onChange={(e) => setEditEnd(e.target.value)}
-              className="flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
+              className="min-w-0 flex-1 bg-black/40 border border-border/50 rounded px-1.5 py-0.5 text-[11px] text-foreground focus:outline-none focus:border-accent"
             />
           </div>
           <div className="flex gap-1.5">
