@@ -164,10 +164,14 @@ function DayColumn({
               return (
                 <div
                   key={u.id}
-                  className="mb-3 px-3 py-2.5 rounded-lg border border-border/20 bg-black/10 flex items-center justify-between"
+                  className="glass-card p-3 mb-3 flex flex-col gap-1.5 opacity-40"
                 >
-                  <span className="text-sm text-textMuted/70 truncate">{u.name}</span>
-                  <span className="text-[10px] text-textMuted/40 bg-white/5 border border-white/5 px-1.5 py-0.5 rounded-full shrink-0 ml-2">休み</span>
+                  <div className="pl-2 font-semibold text-sm text-foreground truncate">{u.name}</div>
+                  <div className="pl-2 flex items-center gap-2">
+                    <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-textMuted text-[11px] font-bold tracking-wide">
+                      休み
+                    </div>
+                  </div>
                 </div>
               );
             })}
