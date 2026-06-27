@@ -15,7 +15,10 @@ export default auth((req) => {
   }
 
   const role = req.auth.user?.role;
-  const isAdminRoute = pathname.startsWith("/admin") || pathname.startsWith("/api/users");
+  // GET /api/users はメンバーも参照可、それ以外の /api/users と /admin は ADMIN 限定
+  const isAdminRoute =
+    pathname.startsWith("/admin") ||
+    (pathname.startsWith("/api/users") && req.method !== "GET");
   if (isAdminRoute && role !== "ADMIN") {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

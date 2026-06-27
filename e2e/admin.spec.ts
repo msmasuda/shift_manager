@@ -53,8 +53,9 @@ test.describe('Admin Dashboard', () => {
     await card.hover();
     await card.getByTestId('edit-shift-btn').click();
 
-    // 時刻を変更
-    const timeInputs = page.locator('input[type="time"]');
+    // 編集中のカード内の time input だけに絞る
+    const editingCard = page.getByTestId('shift-card').filter({ has: page.locator('input[type="time"]') });
+    const timeInputs = editingCard.locator('input[type="time"]');
     await timeInputs.nth(0).fill('10:00');
     await timeInputs.nth(1).fill('19:00');
     await page.getByRole('button', { name: '保存' }).click();
@@ -64,13 +65,14 @@ test.describe('Admin Dashboard', () => {
   });
 
   test('can add a new shift via the form', async ({ page }) => {
-    // 日付・ユーザー・時刻を入力して追加
+    // AddShiftForm の <form> 内に絞ってセレクタを解決する
+    const addForm = page.locator('form');
     const today = new Date();
     const dateStr = today.toISOString().slice(0, 10);
 
-    await page.fill('input[type="date"]', dateStr);
-    await page.fill('input[type="time"]:nth-of-type(1)', '08:00');
-    await page.fill('input[type="time"]:nth-of-type(2)', '17:00');
+    await addForm.locator('input[type="date"]').fill(dateStr);
+    await addForm.locator('input[type="time"]').nth(0).fill('08:00');
+    await addForm.locator('input[type="time"]').nth(1).fill('17:00');
     await page.getByRole('button', { name: '追加する' }).click();
 
     // 追加後にシフトカードが（少なくとも1枚）表示されている

@@ -1,37 +1,55 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Schedule Page (member view)', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/schedule');
-  });
-
   test('shows schedule heading', async ({ page }) => {
+    await page.goto('/schedule');
     await expect(page.getByRole('heading', { name: 'シフト一覧' })).toBeVisible();
   });
 
-  test('displays day columns with user names', async ({ page }) => {
-    // シフトを持つユーザー名が表示されている
+  test('displays all organization members in day columns', async ({ page }) => {
+    // /api/users のレスポンスを先に捕捉するため goto より前に登録
+    const usersResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/users') && r.request().method() === 'GET',
+      { timeout: 20_000 },
+    );
+
+    await page.goto('/schedule');
+
+    const usersResponse = await usersResponsePromise;
+    expect(usersResponse.status(), '/api/users が 200 を返すこと').toBe(200);
+
+    const users = await usersResponse.json();
+    expect(users.length, 'ユーザーが 1 件以上返ること').toBeGreaterThan(0);
+
+    // UI にも全メンバーが表示される
     await expect(page.getByText('佐藤 花子').first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('鈴木 一郎').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('shows 休み badge for users without shifts', async ({ page }) => {
+    const usersResponsePromise = page.waitForResponse(
+      (r) => r.url().includes('/api/users') && r.request().method() === 'GET',
+      { timeout: 20_000 },
+    );
+
+    await page.goto('/schedule');
+    await usersResponsePromise; // users ロード完了を待つ
+
     await expect(page.getByText('休み').first()).toBeVisible({ timeout: 10_000 });
   });
 
   test('date range filter changes displayed days', async ({ page }) => {
-    // 期間を1日だけに絞ると列が1列になる
+    await page.goto('/schedule');
+
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const dayAfter = new Date(tomorrow);
-    dayAfter.setDate(dayAfter.getDate() + 1);
-
     const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
     const inputs = page.locator('input[type="date"]');
     await inputs.nth(0).fill(fmt(tomorrow));
     await inputs.nth(1).fill(fmt(tomorrow));
 
-    // 日付が更新され、その日の列が表示される（または「なし」状態）
-    await page.waitForTimeout(500); // SWR の再取得を待つ
-    await expect(page.locator('input[type="date"]').nth(0)).toHaveValue(fmt(tomorrow));
+    await page.waitForTimeout(500);
+    await expect(inputs.nth(0)).toHaveValue(fmt(tomorrow));
   });
 });
