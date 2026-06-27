@@ -1,4 +1,4 @@
-import type { User, ScheduleDay, ShiftAssignment, ScheduleWarning } from "@/types";
+import type { User, Organization, ScheduleDay, ShiftAssignment, ScheduleWarning } from "@/types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -52,8 +52,11 @@ async function del(path: string): Promise<void> {
 
 export const api = {
   organizations: {
-    list: () => get<{ id: string; name: string }[]>("/api/organizations"),
-    create: (name: string) => post<{ id: string; name: string }>("/api/organizations", { name }),
+    list: () => get<Organization[]>("/api/organizations"),
+    get: (id: string) => get<Organization>(`/api/organizations/${id}`),
+    create: (name: string) => post<Organization>("/api/organizations", { name }),
+    update: (id: string, data: { name?: string; openTime?: string | null; closeTime?: string | null; openTime2?: string | null; closeTime2?: string | null }) =>
+      patch<Organization>(`/api/organizations/${id}`, data),
   },
   users: {
     list: () => get<User[]>("/api/users"),
@@ -65,6 +68,8 @@ export const api = {
       get<ScheduleDay[]>("/api/schedule/days", { from, to }),
     setMinRequired: (date: string, minRequired: number) =>
       put<ScheduleDay>(`/api/schedule/days/${date}`, { minRequired }),
+    setHours: (date: string, openTime: string | null, closeTime: string | null, openTime2?: string | null, closeTime2?: string | null) =>
+      put<ScheduleDay>(`/api/schedule/days/${date}`, { openTime, closeTime, openTime2, closeTime2 }),
     warnings: (from: string, to: string) =>
       get<ScheduleWarning[]>("/api/schedule/warnings", { from, to }),
   },

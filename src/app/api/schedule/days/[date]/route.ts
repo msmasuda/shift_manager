@@ -3,8 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
 
+const timeRegex = /^\d{2}:\d{2}$/;
+
 const putDayBodySchema = z.object({
-  minRequired: z.number().int().min(0).or(z.string().regex(/^\d+$/).transform(Number)),
+  minRequired: z.number().int().min(0).or(z.string().regex(/^\d+$/).transform(Number)).optional(),
+  openTime: z.string().regex(timeRegex).nullable().optional(),
+  closeTime: z.string().regex(timeRegex).nullable().optional(),
+  openTime2: z.string().regex(timeRegex).nullable().optional(),
+  closeTime2: z.string().regex(timeRegex).nullable().optional(),
 });
 
 export async function PUT(
@@ -20,19 +26,24 @@ export async function PUT(
 
     const { date: dateStr } = await params;
     const body = await request.json();
-    const { minRequired } = putDayBodySchema.parse(body);
+    const parsed = putDayBodySchema.parse(body);
 
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
       return NextResponse.json({ error: "Invalid date" }, { status: 400 });
     }
 
+    const updateData: Record<string, unknown> = {};
+    if (parsed.minRequired !== undefined) updateData.minRequired = parsed.minRequired;
+    if (parsed.openTime !== undefined) updateData.openTime = parsed.openTime;
+    if (parsed.closeTime !== undefined) updateData.closeTime = parsed.closeTime;
+    if (parsed.openTime2 !== undefined) updateData.openTime2 = parsed.openTime2;
+    if (parsed.closeTime2 !== undefined) updateData.closeTime2 = parsed.closeTime2;
+
     const day = await prisma.scheduleDay.upsert({
-      where: {
-        organizationId_date: { organizationId, date },
-      },
-      create: { organizationId, date, minRequired },
-      update: { minRequired },
+      where: { organizationId_date: { organizationId, date } },
+      create: { organizationId, date, minRequired: parsed.minRequired ?? 0, ...updateData },
+      update: updateData,
     });
     return NextResponse.json(day);
   } catch (error) {

@@ -12,7 +12,6 @@ import {
 } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
-import { AddShiftForm } from "./AddShiftForm";
 
 function dateKey(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -38,6 +37,11 @@ export default function AdminPage() {
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
     () => api.users.list()
+  );
+
+  const { data: orgData } = useSWR(
+    organizationId ? ["org", organizationId] : null,
+    () => api.organizations.get(organizationId)
   );
 
   const { data: daysData, mutate: mutateDays } = useSWR(
@@ -73,6 +77,14 @@ export default function AdminPage() {
       setIsUpdating(false);
     }
   };
+
+  const handleUpdateHours = async (date: string, openTime: string | null, closeTime: string | null, openTime2: string | null, closeTime2: string | null) => {
+    await api.schedule.setHours(date, openTime, closeTime, openTime2, closeTime2);
+    await refreshSchedule();
+  };
+
+  const hasGapWarnings = warningsData?.some((w) => w.gaps && w.gaps.length > 0);
+  const hasInsufficientWarnings = warningsData?.some((w) => w.insufficient);
 
   return (
     <div className="animate-fade-in pb-20">
@@ -110,16 +122,36 @@ export default function AdminPage() {
            <div className="w-10 h-10 rounded-full bg-warn/20 flex flex-shrink-0 items-center justify-center">
              <svg className="w-5 h-5 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
            </div>
-           <div>
-             <h4 className="text-warn font-bold text-lg mb-1">最低人員不足の警告</h4>
-             <p className="text-sm text-foreground/80 mb-3">以下の日程で必要なスタッフ数が満たされていません。シフトを調整してください。</p>
+           <div className="flex-1 min-w-0">
+             <h4 className="text-warn font-bold text-lg mb-1">
+               {hasInsufficientWarnings && hasGapWarnings
+                 ? "最低人員不足・カバレッジ不足の警告"
+                 : hasInsufficientWarnings
+                 ? "最低人員不足の警告"
+                 : "カバレッジ不足の警告"}
+             </h4>
+             <p className="text-sm text-foreground/80 mb-3">以下の日程でシフトに問題があります。調整してください。</p>
              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                {warningsData.map((w) => (
-                 <li key={w.date as unknown as string} className="flex items-center gap-2 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
-                   <span className="font-semibold text-foreground">{new Date(w.date).toLocaleDateString("ja-JP", { month: 'short', day: 'numeric' })}</span>
-                   <span className="text-xs text-textMuted ml-auto">
-                     出勤 <strong className="text-warn text-sm">{w.assignedCount}</strong> / {w.minRequired}
-                   </span>
+                 <li key={w.date as unknown as string} className="flex flex-col gap-1 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
+                   <div className="flex items-center gap-2">
+                     <span className="font-semibold text-foreground">{new Date(w.date).toLocaleDateString("ja-JP", { month: 'short', day: 'numeric' })}</span>
+                     {w.insufficient && (
+                       <span className="text-xs text-textMuted ml-auto">
+                         出勤 <strong className="text-warn text-sm">{w.assignedCount}</strong> / {w.minRequired}
+                       </span>
+                     )}
+                   </div>
+                   {w.gaps && w.gaps.length > 0 && (
+                     <div className="flex flex-col gap-0.5">
+                       {w.gaps.map((g, i) => (
+                         <span key={i} className="text-xs text-warn/80 flex items-center gap-1">
+                           <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" /></svg>
+                           {g.start}–{g.end} 人員なし
+                         </span>
+                       ))}
+                     </div>
+                   )}
                  </li>
                ))}
              </ul>
@@ -134,15 +166,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {organizationId && users && users.length > 0 && (
-         <AddShiftForm
-           users={users}
-           rangeStart={rangeStart}
-           rangeEnd={rangeEnd}
-           onAdded={refreshSchedule}
-         />
-      )}
-
       {organizationId && daysData && (
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="animate-slide-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
@@ -150,10 +173,15 @@ export default function AdminPage() {
               days={daysData}
               users={users || []}
               organizationId={organizationId}
+              orgOpenTime={orgData?.openTime}
+              orgCloseTime={orgData?.closeTime}
+              orgOpenTime2={orgData?.openTime2}
+              orgCloseTime2={orgData?.closeTime2}
               onUpdateMinRequired={async (date, minRequired) => {
                 await api.schedule.setMinRequired(date, minRequired);
                 await refreshSchedule();
               }}
+              onUpdateHours={handleUpdateHours}
               onRefresh={refreshSchedule}
             />
           </div>

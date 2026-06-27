@@ -24,6 +24,14 @@ export function NavAuth() {
       >
         {isAdmin ? "管理者" : "一覧"}
       </Link>
+      {isAdmin && (
+        <Link
+          href="/admin/organization"
+          className="text-sm font-medium text-textMuted hover:text-white transition-colors"
+        >
+          企業情報
+        </Link>
+      )}
       <div className="flex items-center gap-4 border-l border-border/50 pl-4">
         <span className="text-sm text-textMuted hidden md:block truncate max-w-[120px]">
           {session.user.name}

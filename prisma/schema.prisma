@@ -8,9 +8,13 @@ datasource db {
 }
 
 model Organization {
-  id   String @id @default(cuid())
-  name String
-  users User[]
+  id        String  @id @default(cuid())
+  name      String
+  openTime   String? // "HH:MM" 営業開始・昼の部（デフォルト）
+  closeTime  String? // "HH:MM" 営業終了・昼の部（デフォルト）
+  openTime2  String? // "HH:MM" 営業開始・夜の部（デフォルト）
+  closeTime2 String? // "HH:MM" 営業終了・夜の部（デフォルト）
+  users        User[]
   scheduleDays ScheduleDay[]
 }
 
@@ -31,13 +35,17 @@ enum UserRole {
   MEMBER
 }
 
-// 日付ごとの設定（その日の最低出勤人数）
+// 日付ごとの設定（その日の最低出勤人数・営業時間）
 model ScheduleDay {
   id             String   @id @default(cuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   date           DateTime @db.Date
   minRequired    Int      @default(1) // その日の最低出勤人数
+  openTime       String?  // 組織デフォルトを上書きする営業開始時刻・昼の部
+  closeTime      String?  // 組織デフォルトを上書きする営業終了時刻・昼の部
+  openTime2      String?  // 組織デフォルトを上書きする営業開始時刻・夜の部
+  closeTime2     String?  // 組織デフォルトを上書きする営業終了時刻・夜の部
   shiftAssignments ShiftAssignment[]
   @@unique([organizationId, date])
   @@index([organizationId])
