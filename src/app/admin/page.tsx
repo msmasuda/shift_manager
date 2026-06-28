@@ -53,6 +53,7 @@ function buildFullDays(rangeStart: string, rangeEnd: string, daysData: import("@
       openTime2: null,
       closeTime2: null,
       shiftAssignments: [],
+      leaveRecords: [],
     });
     cur.setUTCDate(cur.getUTCDate() + 1);
   }

@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api } from "@/lib/api";
-import type { ScheduleDay, User } from "@/types";
+import type { ScheduleDay, User, LeaveRecord } from "@/types";
 
 interface AdminBoardProps {
   days: ScheduleDay[];
@@ -169,7 +169,7 @@ function DraggableCard({
         </div>
       ) : (
         <div className="pl-2 flex items-center gap-2">
-          <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none">
+          <div className="px-2 py-0.5 rounded-full bg-accent/10 text-accent text-[11px] font-bold tracking-wide select-none border border-transparent">
             {startTime} - {endTime}
           </div>
         </div>
@@ -282,6 +282,7 @@ function DayColumn({
   openTime2,
   closeTime2,
   assignments,
+  leaveRecords,
   users,
   onUpdateMinRequired,
   onUpdateHours,
@@ -297,6 +298,7 @@ function DayColumn({
   openTime2?: string | null;
   closeTime2?: string | null;
   assignments: ScheduleDay["shiftAssignments"];
+  leaveRecords: LeaveRecord[];
   users: User[];
   onUpdateMinRequired: (date: string, minRequired: number) => Promise<void>;
   onUpdateHours: (date: string, openTime: string | null, closeTime: string | null, openTime2: string | null, closeTime2: string | null) => Promise<void>;
@@ -342,7 +344,7 @@ function DayColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-[200px] max-w-[280px] rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
+      className={`w-[240px] shrink-0 rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
         ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" :
           isHoliday ? "bg-red-950/20 border-red-500/30" :
           isToday ? "bg-accent/5 border-accent/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]" :
@@ -456,7 +458,7 @@ function DayColumn({
 
         {/* Status bar/warning */}
         {!isHoliday && (
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between mt-2 min-h-[22px]">
             <div className="flex items-center gap-1">
               {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
                  <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
@@ -487,6 +489,7 @@ function DayColumn({
           <div className="flex flex-col">
             {users.map((u) => {
               const a = assignments.find((a) => a.userId === u.id);
+              const leave = leaveRecords.find((l) => l.userId === u.id);
               if (a) {
                 return (
                   <DraggableCard
@@ -505,6 +508,23 @@ function DayColumn({
                       await onRefresh();
                     }}
                   />
+                );
+              }
+              if (leave) {
+                return (
+                  <div key={u.id} data-testid="leave-card"
+                    className="glass-card p-3 mb-3 flex flex-col gap-1.5 opacity-60">
+                    <div className="pl-2 font-semibold text-sm text-foreground truncate">{u.name}</div>
+                    <div className="pl-2 flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide
+                        ${leave.type === "PAID_LEAVE"
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                          : "bg-sky-500/15 text-sky-400 border border-sky-500/30"
+                        }`}>
+                        {leave.type === "PAID_LEAVE" ? "有給" : "希望休"}
+                      </span>
+                    </div>
+                  </div>
                 );
               }
               return (
@@ -583,6 +603,7 @@ export function AdminBoard({
             openTime2={d.openTime2 ?? orgOpenTime2}
             closeTime2={d.closeTime2 ?? orgCloseTime2}
             assignments={d.shiftAssignments ?? []}
+            leaveRecords={d.leaveRecords ?? []}
             users={users}
             onUpdateMinRequired={onUpdateMinRequired}
             onUpdateHours={onUpdateHours}

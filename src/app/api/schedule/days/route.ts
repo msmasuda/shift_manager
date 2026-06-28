@@ -22,19 +22,28 @@ export async function GET(request: Request) {
     const fromDate = new Date(from);
     const toDate = new Date(to);
 
-    const days = await prisma.scheduleDay.findMany({
-      where: {
-        organizationId,
-        date: { gte: fromDate, lte: toDate },
-      },
-      orderBy: { date: "asc" },
-      include: {
-        shiftAssignments: {
-          include: { user: { select: { id: true, name: true, email: true } } },
+    const [days, leaveRecords] = await Promise.all([
+      prisma.scheduleDay.findMany({
+        where: { organizationId, date: { gte: fromDate, lte: toDate } },
+        orderBy: { date: "asc" },
+        include: {
+          shiftAssignments: {
+            include: { user: { select: { id: true, name: true, email: true } } },
+          },
         },
-      },
-    });
-    return NextResponse.json(days);
+      }),
+      prisma.leaveRecord.findMany({
+        where: { organizationId, date: { gte: fromDate, lte: toDate } },
+      }),
+    ]);
+
+    const result = days.map((d) => ({
+      ...d,
+      leaveRecords: leaveRecords.filter(
+        (l) => l.date.toISOString().slice(0, 10) === d.date.toISOString().slice(0, 10)
+      ),
+    }));
+    return NextResponse.json(result);
   } catch (error) {
     console.error("GET /api/schedule/days error:", error);
     if (error instanceof z.ZodError) {

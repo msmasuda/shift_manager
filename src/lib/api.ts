@@ -1,4 +1,4 @@
-import type { User, Organization, ScheduleDay, ShiftAssignment, ScheduleWarning } from "@/types";
+import type { User, Organization, ScheduleDay, ShiftAssignment, ScheduleWarning, LeaveRecord, LeaveType } from "@/types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -87,5 +87,12 @@ export const api = {
     update: (id: string, data: { date?: string; userId?: string; startTime?: string; endTime?: string }) =>
       patch<ShiftAssignment>(`/api/shifts/${id}`, data),
     delete: (id: string) => del(`/api/shifts/${id}`),
+  },
+  leave: {
+    list: (from: string, to: string) =>
+      get<LeaveRecord[]>("/api/leave", { from, to }),
+    set: (date: string, type: LeaveType) =>
+      post<LeaveRecord>("/api/leave", { date, type }),
+    cancel: (id: string) => del(`/api/leave/${id}`),
   },
 };
