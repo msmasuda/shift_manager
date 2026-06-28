@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Geist } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NavAuth } from "./nav-auth";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const inter = Inter({ subsets: ["latin"], display: 'swap' });
 
@@ -17,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className={inter.className}>
+    <html lang="ja" className={cn(inter.className, "font-sans", geist.variable, "dark")}>
       <body className="flex flex-col min-h-screen">
         <Providers>
           <header className="fixed top-0 w-full z-50 px-6 py-4">
