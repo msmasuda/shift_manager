@@ -4,7 +4,9 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
-import type { User, ScheduleDay } from "@/types";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 function currentYM() {
   const d = new Date();
@@ -23,45 +25,13 @@ function shiftYM(ym: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function allDatesInRange(start: string, end: string) {
-  const dates: string[] = [];
-  const cur = new Date(start + "T00:00:00Z");
-  const last = new Date(end + "T00:00:00Z");
-  while (cur <= last) {
-    dates.push(cur.toISOString().slice(0, 10));
-    cur.setUTCDate(cur.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-function formatDate(d: string) {
-  const dt = new Date(d + "T00:00:00Z");
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr + "T00:00:00Z");
   return {
-    monthDay: dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", timeZone: "UTC" }),
-    weekday: dt.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "UTC" }),
-    dow: dt.getUTCDay(),
+    monthDay: d.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", timeZone: "UTC" }),
+    weekday: d.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "UTC" }),
+    dow: d.getUTCDay(),
   };
-}
-
-function buildFullDays(start: string, end: string, daysData: ScheduleDay[]): ScheduleDay[] {
-  const map = new Map(daysData.map((d) => [
-    (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10),
-    d,
-  ]));
-  return allDatesInRange(start, end).map((date) =>
-    map.get(date) ?? {
-      id: `empty-${date}`,
-      date,
-      minRequired: 1,
-      isHoliday: false,
-      openTime: null,
-      closeTime: null,
-      openTime2: null,
-      closeTime2: null,
-      shiftAssignments: [],
-      leaveRecords: [],
-    }
-  );
 }
 
 export default function SchedulePage() {
@@ -73,9 +43,9 @@ export default function SchedulePage() {
   const { start, end } = monthRange(ym);
   const today = new Date().toLocaleDateString("sv-SE");
 
-  const { data: users } = useSWR(
-    organizationId ? ["users", organizationId] : null,
-    () => api.users.list()
+  const { data: myShifts } = useSWR(
+    currentUserId ? ["my-shifts", currentUserId, start, end] : null,
+    () => api.shifts.my(start, end)
   );
 
   const { data: daysData } = useSWR(
@@ -83,134 +53,131 @@ export default function SchedulePage() {
     () => api.schedule.days(start, end)
   );
 
-  const days = daysData ? buildFullDays(start, end, daysData) : [];
+  // 自分のシフトがある日だけ、日付順に並べる
+  const myShiftDays = (myShifts ?? [])
+    .map((shift) => {
+      const date = (shift.scheduleDay?.date ?? "").slice(0, 10);
+      if (!date) return null;
+
+      const dayData = daysData?.find((d) =>
+        (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10) === date
+      );
+
+      // 一緒に入るメンバー（自分を除く）
+      const colleagues = (dayData?.shiftAssignments ?? [])
+        .filter((a) => a.userId !== currentUserId)
+        .map((a) => a.user?.name ?? "");
+
+      return { date, shift, colleagues };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a!.date.localeCompare(b!.date)) as {
+      date: string;
+      shift: NonNullable<typeof myShifts>[number];
+      colleagues: string[];
+    }[];
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-20 animate-fade-in">
-      <div className="mb-6 pt-2">
-        <h1 className="text-2xl font-extrabold mb-1 tracking-tight">シフト一覧</h1>
-        <p className="text-textMuted text-sm">スタッフのシフトスケジュールを確認できます。</p>
+    <div className="max-w-md mx-auto pb-20">
+      <div className="mb-5">
+        <h1 className="text-2xl font-extrabold tracking-tight">シフト一覧</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">自分のシフトと一緒に入るメンバー</p>
       </div>
 
       {/* Month picker */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setYm(shiftYM(ym, -1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
+      <div className="flex items-center gap-2 mb-5">
+        <button
+          onClick={() => setYm(shiftYM(ym, -1))}
+          className="w-10 h-10 flex items-center justify-center rounded-lg border border-border/50 bg-black/30 text-textMuted hover:text-white hover:border-textMuted font-bold transition-colors"
+        >
           ←
         </button>
-        <input type="month" value={ym} onChange={(e) => setYm(e.target.value)}
-          className="bg-black/40 border border-border/50 rounded-xl px-4 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors text-center" />
-        <button onClick={() => setYm(shiftYM(ym, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
+        <input
+          type="month"
+          value={ym}
+          onChange={(e) => setYm(e.target.value)}
+          className="flex-1 h-10 rounded-lg border border-border/50 bg-transparent px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-center"
+        />
+        <button
+          onClick={() => setYm(shiftYM(ym, 1))}
+          className="w-10 h-10 flex items-center justify-center rounded-lg border border-border/50 bg-black/30 text-textMuted hover:text-white hover:border-textMuted font-bold transition-colors"
+        >
           →
         </button>
       </div>
 
-      {/* Day list */}
-      <div className="flex flex-col gap-3 animate-slide-up">
-        {days.map((d) => {
-          const date = (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10);
-          const { monthDay, weekday, dow } = formatDate(date);
-          const isHoliday = d.isHoliday ?? false;
-          const isToday = date === today;
-          const isSun = dow === 0;
-          const isSat = dow === 6;
-          const hasAnyShift = (d.shiftAssignments?.length ?? 0) > 0;
+      {/* Shift list */}
+      {myShiftDays.length === 0 ? (
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground text-sm">
+            この月のシフトはまだありません
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {myShiftDays.map(({ date, shift, colleagues }) => {
+            const { monthDay, weekday, dow } = formatDate(date);
+            const isToday = date === today;
+            const isSun = dow === 0;
+            const isSat = dow === 6;
 
-          if (!hasAnyShift && !isToday && !isHoliday) {
             return (
-              <div key={d.id} className="flex items-center gap-3 px-1">
-                <div className={`w-10 text-center shrink-0`}>
-                  <div className={`text-base font-black leading-none
-                    ${isSun ? "text-red-400" : isSat ? "text-sky-400" : "text-foreground/40"}`}>
-                    {monthDay.replace(/\d+\//, "")}
-                  </div>
-                  <div className={`text-[10px] font-semibold mt-0.5
-                    ${isSun ? "text-red-400/60" : isSat ? "text-sky-400/60" : "text-textMuted/30"}`}>
-                    {weekday}
-                  </div>
-                </div>
-                <div className="flex-1 h-px bg-border/20"></div>
-              </div>
-            );
-          }
-
-          return (
-            <div key={d.id}
-              className={`glass-card overflow-hidden transition-all
-                ${isToday ? "border-accent/50 bg-accent/5" : ""}
-                ${isHoliday ? "border-red-500/20 bg-red-950/10" : ""}
-              `}>
-              {/* Day header */}
-              <div className={`px-4 py-2.5 flex items-center gap-2 border-b
-                ${isToday ? "border-accent/20 bg-accent/10"
-                : isHoliday ? "border-red-500/15 bg-red-950/20"
-                : isSun ? "border-red-500/15 bg-red-950/10"
-                : isSat ? "border-sky-500/15 bg-sky-950/10"
-                : "border-border/30 bg-black/10"}`}>
-                <span className={`text-base font-black
-                  ${isHoliday ? "text-red-400/70"
-                  : isToday ? "text-accent"
-                  : isSun ? "text-red-400"
-                  : isSat ? "text-sky-400"
-                  : "text-foreground"}`}>
-                  {monthDay}
-                </span>
-                <span className={`text-xs font-semibold
-                  ${isHoliday ? "text-red-400/50"
-                  : isToday ? "text-accent/70"
-                  : isSun ? "text-red-400/70"
-                  : isSat ? "text-sky-400/70"
-                  : "text-textMuted"}`}>
-                  {weekday}
-                </span>
-                {isToday && !isHoliday && (
-                  <span className="ml-auto text-[10px] font-bold text-accent bg-accent/15 border border-accent/30 px-1.5 py-0.5 rounded-full">今日</span>
-                )}
-                {isHoliday && (
-                  <span className="ml-auto text-[10px] font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">休日</span>
-                )}
-              </div>
-
-              {/* Staff rows */}
-              <div className="divide-y divide-border/20">
-                {(users ?? []).map((u: User) => {
-                  const a = d.shiftAssignments?.find((sa) => sa.userId === u.id);
-                  const leave = d.leaveRecords?.find((l) => l.userId === u.id);
-                  const isMe = u.id === currentUserId;
-
-                  return (
-                    <div key={u.id}
-                      className={`px-4 py-2.5 flex items-center gap-3
-                        ${isMe ? "bg-accent/5" : ""}`}>
-                      <span className={`text-sm font-semibold w-24 shrink-0 truncate
-                        ${isMe ? "text-accent" : "text-foreground"}`}>
-                        {u.name}
+              <Card
+                key={date}
+                size="sm"
+                className={isToday ? "ring-accent/50 bg-accent/5" : ""}
+              >
+                <CardContent className="py-3 px-4 flex flex-col gap-2">
+                  {/* Date + time */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-lg font-black
+                        ${isToday ? "text-accent"
+                        : isSun ? "text-red-400"
+                        : isSat ? "text-sky-400"
+                        : "text-foreground"}`}>
+                        {monthDay}
                       </span>
-                      {a ? (
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border border-transparent
-                          ${isMe ? "bg-accent/10 text-accent" : "bg-white/5 text-textMuted"}`}>
-                          {a.startTime} – {a.endTime}
-                        </span>
-                      ) : leave ? (
-                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border
-                          ${leave.type === "PAID_LEAVE"
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : "bg-sky-500/15 text-sky-400 border-sky-500/30"
-                          }`}>
-                          {leave.type === "PAID_LEAVE" ? "有給" : "希望休"}
-                        </span>
-                      ) : (
-                        <span className="text-textMuted/30 text-xs">—</span>
+                      <span className={`text-xs font-semibold
+                        ${isToday ? "text-accent/70"
+                        : isSun ? "text-red-400/70"
+                        : isSat ? "text-sky-400/70"
+                        : "text-muted-foreground"}`}>
+                        {weekday}
+                      </span>
+                      {isToday && (
+                        <Badge variant="outline" className="text-accent border-accent/30 bg-accent/10 text-[10px] h-4 px-1.5">
+                          今日
+                        </Badge>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                    <Badge variant="outline" className="text-accent border-accent/30 bg-accent/10 font-bold">
+                      {shift.startTime} – {shift.endTime}
+                    </Badge>
+                  </div>
+
+                  {/* Colleagues */}
+                  <Separator className="bg-border/30" />
+                  <div className="flex items-center gap-2 min-h-[20px]">
+                    <span className="text-xs text-muted-foreground shrink-0">一緒に:</span>
+                    {colleagues.length === 0 ? (
+                      <span className="text-xs text-muted-foreground/50">1人（自分のみ）</span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {colleagues.map((name) => (
+                          <Badge key={name} variant="secondary" className="text-[11px] h-5">
+                            {name}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

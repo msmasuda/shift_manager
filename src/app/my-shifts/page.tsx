@@ -5,6 +5,10 @@ import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
 import type { LeaveType } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 function currentYM() {
   const d = new Date();
@@ -42,16 +46,6 @@ function formatDate(dateStr: string) {
     dow: d.getUTCDay(),
   };
 }
-
-const LEAVE_LABELS: Record<LeaveType, string> = {
-  PREFERRED_OFF: "希望休",
-  PAID_LEAVE: "有給",
-};
-
-const LEAVE_STYLES: Record<LeaveType, string> = {
-  PREFERRED_OFF: "bg-sky-500/15 text-sky-400 border-sky-500/30",
-  PAID_LEAVE: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-};
 
 export default function MyShiftsPage() {
   const { data: session } = useSession();
@@ -92,28 +86,27 @@ export default function MyShiftsPage() {
   const dates = allDatesInRange(start, end);
 
   return (
-    <div className="max-w-lg mx-auto px-4 pb-20 animate-fade-in">
-      <div className="mb-6 pt-2">
-        <h1 className="text-2xl font-extrabold mb-1 tracking-tight">My Shifts</h1>
-        <p className="text-textMuted text-sm">シフト確認・希望休・有給の登録</p>
+    <div className="max-w-md mx-auto pb-20">
+      {/* Page title */}
+      <div className="mb-5">
+        <h1 className="text-2xl font-extrabold tracking-tight">My Shifts</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">シフト確認・希望休・有給の登録</p>
       </div>
 
       {/* Month picker */}
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setYm(shiftYM(ym, -1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
-          ←
-        </button>
-        <input type="month" value={ym} onChange={(e) => setYm(e.target.value)}
-          className="bg-black/40 border border-border/50 rounded-xl px-4 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors text-center" />
-        <button onClick={() => setYm(shiftYM(ym, 1))}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
-          →
-        </button>
+      <div className="flex items-center gap-2 mb-5">
+        <Button variant="outline" size="icon" onClick={() => setYm(shiftYM(ym, -1))}>←</Button>
+        <input
+          type="month"
+          value={ym}
+          onChange={(e) => setYm(e.target.value)}
+          className="flex-1 h-8 rounded-lg border border-border bg-transparent px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-center"
+        />
+        <Button variant="outline" size="icon" onClick={() => setYm(shiftYM(ym, 1))}>→</Button>
       </div>
 
       {/* Day list */}
-      <div className="flex flex-col gap-2 animate-slide-up">
+      <div className="flex flex-col gap-2">
         {dates.map((date) => {
           const shift = shifts?.find((s) => (s.scheduleDay?.date ?? "").slice(0, 10) === date);
           const leave = leaves?.find((l) => (typeof l.date === "string" ? l.date : new Date(l.date).toISOString()).slice(0, 10) === date);
@@ -126,76 +119,98 @@ export default function MyShiftsPage() {
           const isSat = dow === 6;
 
           return (
-            <div key={date}
-              className={`glass-card px-4 py-3 flex items-center gap-3 transition-all
-                ${isToday ? "border-accent/50 bg-accent/5" : ""}
-                ${isHoliday ? "border-red-500/20 bg-red-950/10 opacity-60" : ""}
-              `}>
-              {/* Date */}
-              <div className="w-10 shrink-0 text-center">
-                <div className={`text-xl font-black leading-none
-                  ${isHoliday ? "text-red-400/70"
-                  : isToday ? "text-accent"
-                  : isSun ? "text-red-400"
-                  : isSat ? "text-sky-400"
-                  : "text-foreground"}`}>
-                  {day}
+            <Card
+              key={date}
+              size="sm"
+              className={`${isToday ? "ring-accent/50 bg-accent/5" : ""} ${isHoliday ? "opacity-50" : ""}`}
+            >
+              <CardContent className="flex items-center gap-3 py-3">
+                {/* Date */}
+                <div className="w-10 shrink-0 text-center">
+                  <div className={`text-xl font-black leading-none
+                    ${isHoliday ? "text-muted-foreground"
+                    : isToday ? "text-accent"
+                    : isSun ? "text-red-400"
+                    : isSat ? "text-sky-400"
+                    : "text-foreground"}`}>
+                    {day}
+                  </div>
+                  <div className={`text-[10px] font-semibold mt-0.5
+                    ${isHoliday ? "text-muted-foreground/60"
+                    : isToday ? "text-accent/70"
+                    : isSun ? "text-red-400/70"
+                    : isSat ? "text-sky-400/70"
+                    : "text-muted-foreground"}`}>
+                    {weekday}
+                  </div>
                 </div>
-                <div className={`text-[10px] font-semibold mt-0.5
-                  ${isHoliday ? "text-red-400/50"
-                  : isToday ? "text-accent/70"
-                  : isSun ? "text-red-400/70"
-                  : isSat ? "text-sky-400/70"
-                  : "text-textMuted"}`}>
-                  {weekday}
-                </div>
-              </div>
 
-              {/* Status */}
-              <div className="flex-1 min-w-0">
-                {isHoliday && (
-                  <span className="text-[11px] font-bold text-red-400/60 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-full">
-                    休日
-                  </span>
-                )}
-                {!isHoliday && shift && !leave && (
-                  <span className="px-2.5 py-1 rounded-full bg-accent/10 text-accent text-sm font-bold border border-accent/20">
-                    {shift.startTime} – {shift.endTime}
-                  </span>
-                )}
-                {!isHoliday && leave && (
-                  <span className={`px-2.5 py-1 rounded-full text-sm font-bold border ${LEAVE_STYLES[leave.type]}`}>
-                    {LEAVE_LABELS[leave.type]}
-                  </span>
-                )}
-                {!isHoliday && !shift && !leave && (
-                  <span className="text-textMuted/30 text-sm">—</span>
-                )}
-              </div>
+                <Separator orientation="vertical" className="h-10" />
 
-              {/* Actions */}
-              {!isHoliday && (
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {leave ? (
-                    <button onClick={() => handleCancelLeave(leave.id, date)} disabled={isLoading}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 border border-border/50 text-textMuted hover:text-foreground text-xs font-bold transition-colors disabled:opacity-40 min-h-[36px]">
-                      {isLoading ? "…" : "取消"}
-                    </button>
-                  ) : (
-                    <>
-                      <button onClick={() => handleSetLeave(date, "PREFERRED_OFF")} disabled={isLoading}
-                        className="px-3 py-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 hover:bg-sky-500/20 text-xs font-bold transition-colors disabled:opacity-40 min-h-[36px]">
-                        {isLoading ? "…" : "希望休"}
-                      </button>
-                      <button onClick={() => handleSetLeave(date, "PAID_LEAVE")} disabled={isLoading}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold transition-colors disabled:opacity-40 min-h-[36px]">
-                        {isLoading ? "…" : "有給"}
-                      </button>
-                    </>
+                {/* Status */}
+                <div className="flex-1 min-w-0">
+                  {isHoliday && (
+                    <Badge variant="destructive" className="text-[10px]">休日</Badge>
+                  )}
+                  {!isHoliday && shift && !leave && (
+                    <Badge variant="outline" className="text-accent border-accent/30 bg-accent/10 font-bold">
+                      {shift.startTime} – {shift.endTime}
+                    </Badge>
+                  )}
+                  {!isHoliday && leave && (
+                    <Badge
+                      variant="outline"
+                      className={leave.type === "PAID_LEAVE"
+                        ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10 font-bold"
+                        : "text-sky-400 border-sky-500/30 bg-sky-500/10 font-bold"}
+                    >
+                      {leave.type === "PAID_LEAVE" ? "有給" : "希望休"}
+                    </Badge>
+                  )}
+                  {!isHoliday && !shift && !leave && (
+                    <span className="text-muted-foreground/30 text-sm">—</span>
                   )}
                 </div>
-              )}
-            </div>
+
+                {/* Actions */}
+                {!isHoliday && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {leave ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCancelLeave(leave.id, date)}
+                        disabled={isLoading}
+                        className="h-9 px-3 text-xs"
+                      >
+                        {isLoading ? "…" : "取消"}
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSetLeave(date, "PREFERRED_OFF")}
+                          disabled={isLoading}
+                          className="h-9 px-3 text-xs border-sky-500/30 text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 hover:text-sky-300"
+                        >
+                          {isLoading ? "…" : "希望休"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleSetLeave(date, "PAID_LEAVE")}
+                          disabled={isLoading}
+                          className="h-9 px-3 text-xs border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 hover:text-emerald-300"
+                        >
+                          {isLoading ? "…" : "有給"}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           );
         })}
       </div>
