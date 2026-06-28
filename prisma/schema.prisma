@@ -42,6 +42,7 @@ model ScheduleDay {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   date           DateTime @db.Date
   minRequired    Int      @default(1) // その日の最低出勤人数
+  isHoliday      Boolean  @default(false)
   openTime       String?  // 組織デフォルトを上書きする営業開始時刻・昼の部
   closeTime      String?  // 組織デフォルトを上書きする営業終了時刻・昼の部
   openTime2      String?  // 組織デフォルトを上書きする営業開始時刻・夜の部

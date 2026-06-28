@@ -68,6 +68,8 @@ export const api = {
       get<ScheduleDay[]>("/api/schedule/days", { from, to }),
     setMinRequired: (date: string, minRequired: number) =>
       put<ScheduleDay>(`/api/schedule/days/${date}`, { minRequired }),
+    setHoliday: (date: string, isHoliday: boolean) =>
+      put<ScheduleDay>(`/api/schedule/days/${date}`, { isHoliday }),
     setHours: (date: string, openTime: string | null, closeTime: string | null, openTime2?: string | null, closeTime2?: string | null) =>
       put<ScheduleDay>(`/api/schedule/days/${date}`, { openTime, closeTime, openTime2, closeTime2 }),
     warnings: (from: string, to: string) =>

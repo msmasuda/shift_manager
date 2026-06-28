@@ -20,6 +20,7 @@ export interface ScheduleDay {
   id: string;
   date: string;
   minRequired: number;
+  isHoliday: boolean;
   openTime?: string | null;
   closeTime?: string | null;
   openTime2?: string | null;

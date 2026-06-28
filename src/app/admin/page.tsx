@@ -14,24 +14,60 @@ import { api } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
 
 function dateKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
+}
+
+function monthRange(ym: string): { start: string; end: string } {
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return {
+    start: `${ym}-01`,
+    end: `${ym}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+function shiftYM(ym: string, delta: number): string {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+// 表示範囲の全日付を生成し、DBレコードとマージする
+function buildFullDays(rangeStart: string, rangeEnd: string, daysData: import("@/types").ScheduleDay[]): import("@/types").ScheduleDay[] {
+  const result: import("@/types").ScheduleDay[] = [];
+  const map = new Map(daysData.map((d) => [
+    (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10),
+    d,
+  ]));
+  const cur = new Date(rangeStart + "T00:00:00Z");
+  const end = new Date(rangeEnd + "T00:00:00Z");
+  while (cur <= end) {
+    const key = dateKey(cur);
+    result.push(map.get(key) ?? {
+      id: `empty-${key}`,
+      date: key,
+      minRequired: 1,
+      isHoliday: false,
+      openTime: null,
+      closeTime: null,
+      openTime2: null,
+      closeTime2: null,
+      shiftAssignments: [],
+    });
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return result;
 }
 
 export default function AdminPage() {
   const { data: session } = useSession();
   const organizationId = session?.user?.organizationId ?? "";
 
-  const [rangeStart, setRangeStart] = useState(() => {
+  const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
-    d.setDate(1);
-    return dateKey(d);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [rangeEnd, setRangeEnd] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 1);
-    d.setDate(0);
-    return dateKey(d);
-  });
+  const { start: rangeStart, end: rangeEnd } = monthRange(currentMonth);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const { data: users } = useSWR(
@@ -49,13 +85,8 @@ export default function AdminPage() {
     () => api.schedule.days(rangeStart, rangeEnd)
   );
 
-  const { data: warningsData, mutate: mutateWarnings } = useSWR(
-    organizationId ? ["scheduleWarnings", organizationId, rangeStart, rangeEnd] : null,
-    () => api.schedule.warnings(rangeStart, rangeEnd)
-  );
-
   const refreshSchedule = async () => {
-    await Promise.all([mutateDays(), mutateWarnings()]);
+    await mutateDays();
   };
 
   const sensors = useSensors(
@@ -83,8 +114,10 @@ export default function AdminPage() {
     await refreshSchedule();
   };
 
-  const hasGapWarnings = warningsData?.some((w) => w.gaps && w.gaps.length > 0);
-  const hasInsufficientWarnings = warningsData?.some((w) => w.insufficient);
+  const handleToggleHoliday = async (date: string, isHoliday: boolean) => {
+    await api.schedule.setHoliday(date, isHoliday);
+    await refreshSchedule();
+  };
 
   return (
     <div className="animate-fade-in pb-20">
@@ -96,68 +129,28 @@ export default function AdminPage() {
           <p className="text-textMuted">シフトの管理・スケジュールの編成を行います。</p>
         </div>
 
-        {/* Date Range Filter */}
-        <div className="glass-card p-3 flex flex-wrap items-center gap-4 shadow-glass self-start md:self-auto w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={rangeStart}
-              onChange={(e) => setRangeStart(e.target.value)}
-              className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-            />
-            <span className="text-textMuted text-xs font-bold">―</span>
-            <input
-              type="date"
-              value={rangeEnd}
-              onChange={(e) => setRangeEnd(e.target.value)}
-              className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-            />
-          </div>
+        {/* Month Picker */}
+        <div className="glass-card p-3 flex items-center gap-2 shadow-glass self-start md:self-auto">
+          <button
+            onClick={() => setCurrentMonth(shiftYM(currentMonth, -1))}
+            className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
+          >
+            ←
+          </button>
+          <input
+            type="month"
+            value={currentMonth}
+            onChange={(e) => setCurrentMonth(e.target.value)}
+            className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
+          />
+          <button
+            onClick={() => setCurrentMonth(shiftYM(currentMonth, 1))}
+            className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
+          >
+            →
+          </button>
         </div>
       </div>
-
-      {/* Warning Alert Banner */}
-      {warningsData && warningsData.length > 0 && (
-        <div className="glass-card p-4 mb-8 border-warn/30 bg-warn/10 flex items-start gap-4 animate-slide-up shadow-[0_4px_30px_rgba(251,191,36,0.15)]">
-           <div className="w-10 h-10 rounded-full bg-warn/20 flex flex-shrink-0 items-center justify-center">
-             <svg className="w-5 h-5 text-warn" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-           </div>
-           <div className="flex-1 min-w-0">
-             <h4 className="text-warn font-bold text-lg mb-1">
-               {hasInsufficientWarnings && hasGapWarnings
-                 ? "最低人員不足・カバレッジ不足の警告"
-                 : hasInsufficientWarnings
-                 ? "最低人員不足の警告"
-                 : "カバレッジ不足の警告"}
-             </h4>
-             <p className="text-sm text-foreground/80 mb-3">以下の日程でシフトに問題があります。調整してください。</p>
-             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-               {warningsData.map((w) => (
-                 <li key={w.date as unknown as string} className="flex flex-col gap-1 bg-black/20 border border-warn/20 rounded-md px-3 py-2 text-sm">
-                   <div className="flex items-center gap-2">
-                     <span className="font-semibold text-foreground">{new Date(w.date).toLocaleDateString("ja-JP", { month: 'short', day: 'numeric' })}</span>
-                     {w.insufficient && (
-                       <span className="text-xs text-textMuted ml-auto">
-                         出勤 <strong className="text-warn text-sm">{w.assignedCount}</strong> / {w.minRequired}
-                       </span>
-                     )}
-                   </div>
-                   {w.gaps && w.gaps.length > 0 && (
-                     <div className="flex flex-col gap-0.5">
-                       {w.gaps.map((g, i) => (
-                         <span key={i} className="text-xs text-warn/80 flex items-center gap-1">
-                           <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3" /></svg>
-                           {g.start}–{g.end} 人員なし
-                         </span>
-                       ))}
-                     </div>
-                   )}
-                 </li>
-               ))}
-             </ul>
-           </div>
-        </div>
-      )}
 
       {isUpdating && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-accent/50 bg-accent/10 flex items-center gap-3 shadow-glow rounded-full">
@@ -170,7 +163,7 @@ export default function AdminPage() {
         <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
           <div className="animate-slide-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
             <AdminBoard
-              days={daysData}
+              days={buildFullDays(rangeStart, rangeEnd, daysData)}
               users={users || []}
               organizationId={organizationId}
               orgOpenTime={orgData?.openTime}
@@ -182,6 +175,7 @@ export default function AdminPage() {
                 await refreshSchedule();
               }}
               onUpdateHours={handleUpdateHours}
+              onToggleHoliday={handleToggleHoliday}
               onRefresh={refreshSchedule}
             />
           </div>

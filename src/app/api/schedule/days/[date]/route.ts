@@ -7,6 +7,7 @@ const timeRegex = /^\d{2}:\d{2}$/;
 
 const putDayBodySchema = z.object({
   minRequired: z.number().int().min(0).or(z.string().regex(/^\d+$/).transform(Number)).optional(),
+  isHoliday: z.boolean().optional(),
   openTime: z.string().regex(timeRegex).nullable().optional(),
   closeTime: z.string().regex(timeRegex).nullable().optional(),
   openTime2: z.string().regex(timeRegex).nullable().optional(),
@@ -35,10 +36,26 @@ export async function PUT(
 
     const updateData: Record<string, unknown> = {};
     if (parsed.minRequired !== undefined) updateData.minRequired = parsed.minRequired;
+    if (parsed.isHoliday !== undefined) updateData.isHoliday = parsed.isHoliday;
     if (parsed.openTime !== undefined) updateData.openTime = parsed.openTime;
     if (parsed.closeTime !== undefined) updateData.closeTime = parsed.closeTime;
     if (parsed.openTime2 !== undefined) updateData.openTime2 = parsed.openTime2;
     if (parsed.closeTime2 !== undefined) updateData.closeTime2 = parsed.closeTime2;
+
+    // 休日設定時: minRequired=0 に強制、全シフトを削除
+    if (parsed.isHoliday === true) {
+      updateData.minRequired = 0;
+      const day = await prisma.$transaction(async (tx) => {
+        const upserted = await tx.scheduleDay.upsert({
+          where: { organizationId_date: { organizationId, date } },
+          create: { organizationId, date, minRequired: 0, isHoliday: true },
+          update: updateData,
+        });
+        await tx.shiftAssignment.deleteMany({ where: { scheduleDayId: upserted.id } });
+        return upserted;
+      });
+      return NextResponse.json(day);
+    }
 
     const day = await prisma.scheduleDay.upsert({
       where: { organizationId_date: { organizationId, date } },

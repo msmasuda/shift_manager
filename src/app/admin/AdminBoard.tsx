@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import type { ScheduleDay, User } from "@/types";
@@ -15,6 +15,7 @@ interface AdminBoardProps {
   orgCloseTime2?: string | null;
   onUpdateMinRequired: (date: string, minRequired: number) => Promise<void>;
   onUpdateHours: (date: string, openTime: string | null, closeTime: string | null, openTime2: string | null, closeTime2: string | null) => Promise<void>;
+  onToggleHoliday: (date: string, isHoliday: boolean) => Promise<void>;
   onRefresh: () => Promise<void>;
 }
 
@@ -274,6 +275,8 @@ function HolidayCard({
 function DayColumn({
   date,
   minRequired,
+  isHoliday,
+  isToday,
   openTime,
   closeTime,
   openTime2,
@@ -282,10 +285,13 @@ function DayColumn({
   users,
   onUpdateMinRequired,
   onUpdateHours,
+  onToggleHoliday,
   onRefresh,
 }: {
   date: string;
   minRequired: number;
+  isHoliday: boolean;
+  isToday: boolean;
   openTime?: string | null;
   closeTime?: string | null;
   openTime2?: string | null;
@@ -294,6 +300,7 @@ function DayColumn({
   users: User[];
   onUpdateMinRequired: (date: string, minRequired: number) => Promise<void>;
   onUpdateHours: (date: string, openTime: string | null, closeTime: string | null, openTime2: string | null, closeTime2: string | null) => Promise<void>;
+  onToggleHoliday: (date: string, isHoliday: boolean) => Promise<void>;
   onRefresh: () => Promise<void>;
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -306,6 +313,16 @@ function DayColumn({
   const [editOpen2, setEditOpen2] = useState(openTime2 ?? "");
   const [editClose2, setEditClose2] = useState(closeTime2 ?? "");
   const [savingHours, setSavingHours] = useState(false);
+  const [togglingHoliday, setTogglingHoliday] = useState(false);
+
+  const handleToggleHoliday = async () => {
+    setTogglingHoliday(true);
+    try {
+      await onToggleHoliday(date, !isHoliday);
+    } finally {
+      setTogglingHoliday(false);
+    }
+  };
 
   const handleSaveHours = async () => {
     setSavingHours(true);
@@ -319,6 +336,7 @@ function DayColumn({
 
   const uniqueCount = new Set(assignments.map((a) => a.userId)).size;
   const insufficient = uniqueCount < minRequired;
+  const warn = !isHoliday && (insufficient || minRequired === 0);
   const formattedDate = formatDate(date);
 
   return (
@@ -326,33 +344,62 @@ function DayColumn({
       ref={setNodeRef}
       className={`flex-1 min-w-[200px] max-w-[280px] rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
         ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" :
-          insufficient ? "bg-surface/40 border-warn/30" : "bg-surface/30 border-border"
+          isHoliday ? "bg-red-950/20 border-red-500/30" :
+          isToday ? "bg-accent/5 border-accent/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]" :
+          warn ? "bg-surface/40 border-warn/30" : "bg-surface/30 border-border"
         }`}
     >
       {/* Column Header */}
-      <div className={`p-4 border-b ${insufficient ? 'border-warn/20 bg-warn/5' : 'border-border/50 bg-black/20'}`}>
+      <div className={`p-4 border-b ${isHoliday ? 'border-red-500/20 bg-red-950/30' : isToday ? 'border-accent/20 bg-accent/10' : warn ? 'border-warn/20 bg-warn/5' : 'border-border/50 bg-black/20'}`}>
         <div className="flex items-end justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <span className={`text-xl font-bold tracking-tight ${insufficient ? 'text-warn' : 'text-foreground'}`}>
+            <span className={`text-xl font-bold tracking-tight ${isHoliday ? 'text-red-400' : isToday ? 'text-accent' : warn ? 'text-warn' : 'text-foreground'}`}>
               {formattedDate.monthDay}
             </span>
-            <span className={`text-xs font-medium uppercase ${insufficient ? 'text-warn/80' : 'text-textMuted'}`}>
+            <span className={`text-xs font-medium uppercase ${isHoliday ? 'text-red-400/80' : isToday ? 'text-accent/80' : warn ? 'text-warn/80' : 'text-textMuted'}`}>
               {formattedDate.weekday}
             </span>
+            {isToday && !isHoliday && (
+              <span className="text-[10px] font-bold text-accent bg-accent/15 border border-accent/30 px-1.5 py-0.5 rounded-full">
+                今日
+              </span>
+            )}
+            {isHoliday && (
+              <span className="text-[10px] font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">
+                休日
+              </span>
+            )}
           </div>
 
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] text-textMuted uppercase font-semibold mb-1">最低人数</span>
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${insufficient ? 'border-warn/50' : 'border-transparent hover:border-border transition-colors'} bg-black/30`}>
-              <button
-                className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
-                onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
-              >-</button>
-              <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
-              <button
-                className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
-                onClick={() => onUpdateMinRequired(date, minRequired + 1)}
-              >+</button>
+          <div className="flex flex-col items-end gap-1.5">
+            <button
+              onClick={handleToggleHoliday}
+              disabled={togglingHoliday}
+              title={isHoliday ? "休日を解除" : "休日に設定"}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all disabled:opacity-50
+                ${isHoliday
+                  ? "bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30"
+                  : "bg-black/20 border-border/50 text-textMuted hover:border-red-500/40 hover:text-red-400"
+                }`}
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {isHoliday ? "休日解除" : "休日設定"}
+            </button>
+            <div className="flex flex-col items-end">
+              <span className="text-[10px] text-textMuted uppercase font-semibold mb-1">最低人数</span>
+              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${warn ? 'border-warn/50' : 'border-transparent hover:border-border transition-colors'} bg-black/30`}>
+                <button
+                  className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                  onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
+                >-</button>
+                <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
+                <button
+                  className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                  onClick={() => onUpdateMinRequired(date, minRequired + 1)}
+                >+</button>
+              </div>
             </div>
           </div>
         </div>
@@ -408,18 +455,25 @@ function DayColumn({
         </div>
 
         {/* Status bar/warning */}
-        <div className="flex items-center justify-between mt-2">
-          <div className="flex items-center gap-1">
-            {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
-               <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
-            ))}
+        {!isHoliday && (
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
+                 <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
+              ))}
+            </div>
+            {minRequired === 0 && (
+              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+                最低人数 未設定
+              </span>
+            )}
+            {insufficient && minRequired > 0 && (
+              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+                {uniqueCount} / {minRequired} 定員割れ
+              </span>
+            )}
           </div>
-          {insufficient && minRequired > 0 && (
-            <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-              {uniqueCount} / {minRequired} 定員割れ
-            </span>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Cards Container */}
@@ -483,6 +537,7 @@ export function AdminBoard({
   orgCloseTime2,
   onUpdateMinRequired,
   onUpdateHours,
+  onToggleHoliday,
   onRefresh,
 }: AdminBoardProps) {
   if (days.length === 0) {
@@ -497,24 +552,45 @@ export function AdminBoard({
     );
   }
 
+  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (scrollRef.current && Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+      e.preventDefault();
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
   return (
-    <div className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x" style={{ scrollbarWidth: 'thin' }}>
-      {days.map((d) => (
-        <DayColumn
-          key={d.id}
-          date={(typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10)}
-          minRequired={d.minRequired}
-          openTime={d.openTime ?? orgOpenTime}
-          closeTime={d.closeTime ?? orgCloseTime}
-          openTime2={d.openTime2 ?? orgOpenTime2}
-          closeTime2={d.closeTime2 ?? orgCloseTime2}
-          assignments={d.shiftAssignments ?? []}
-          users={users}
-          onUpdateMinRequired={onUpdateMinRequired}
-          onUpdateHours={onUpdateHours}
-          onRefresh={onRefresh}
-        />
-      ))}
+    <div
+      ref={scrollRef}
+      onWheel={handleWheel}
+      className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x"
+      style={{ scrollbarWidth: 'thin' }}
+    >
+      {days.map((d) => {
+        const dateStr = (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10);
+        return (
+          <DayColumn
+            key={d.id}
+            date={dateStr}
+            minRequired={d.minRequired}
+            isHoliday={d.isHoliday ?? false}
+            isToday={dateStr === today}
+            openTime={d.openTime ?? orgOpenTime}
+            closeTime={d.closeTime ?? orgCloseTime}
+            openTime2={d.openTime2 ?? orgOpenTime2}
+            closeTime2={d.closeTime2 ?? orgCloseTime2}
+            assignments={d.shiftAssignments ?? []}
+            users={users}
+            onUpdateMinRequired={onUpdateMinRequired}
+            onUpdateHours={onUpdateHours}
+            onToggleHoliday={onToggleHoliday}
+            onRefresh={onRefresh}
+          />
+        );
+      })}
     </div>
   );
 }

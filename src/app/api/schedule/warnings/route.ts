@@ -93,6 +93,7 @@ export async function GET(request: Request) {
     ]);
 
     const result = days
+      .filter((d) => !d.isHoliday)
       .map((d) => {
         const uniqueCount = new Set(d.shiftAssignments.map((a) => a.userId)).size;
         const insufficient = uniqueCount < d.minRequired;
