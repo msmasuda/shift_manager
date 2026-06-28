@@ -4,18 +4,64 @@ import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
 import { api } from "@/lib/api";
-import type { User } from "@/types";
+import type { User, ScheduleDay } from "@/types";
 
-function dateKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+function currentYM() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthRange(ym: string) {
+  const [y, m] = ym.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { start: `${ym}-01`, end: `${ym}-${String(lastDay).padStart(2, "0")}` };
+}
+
+function shiftYM(ym: string, delta: number) {
+  const [y, m] = ym.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function allDatesInRange(start: string, end: string) {
+  const dates: string[] = [];
+  const cur = new Date(start + "T00:00:00Z");
+  const last = new Date(end + "T00:00:00Z");
+  while (cur <= last) {
+    dates.push(cur.toISOString().slice(0, 10));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return dates;
 }
 
 function formatDate(d: string) {
-  const dt = new Date(d);
+  const dt = new Date(d + "T00:00:00Z");
   return {
     monthDay: dt.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", timeZone: "UTC" }),
     weekday: dt.toLocaleDateString("ja-JP", { weekday: "short", timeZone: "UTC" }),
+    dow: dt.getUTCDay(),
   };
+}
+
+function buildFullDays(start: string, end: string, daysData: ScheduleDay[]): ScheduleDay[] {
+  const map = new Map(daysData.map((d) => [
+    (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10),
+    d,
+  ]));
+  return allDatesInRange(start, end).map((date) =>
+    map.get(date) ?? {
+      id: `empty-${date}`,
+      date,
+      minRequired: 1,
+      isHoliday: false,
+      openTime: null,
+      closeTime: null,
+      openTime2: null,
+      closeTime2: null,
+      shiftAssignments: [],
+      leaveRecords: [],
+    }
+  );
 }
 
 export default function SchedulePage() {
@@ -23,17 +69,9 @@ export default function SchedulePage() {
   const organizationId = session?.user?.organizationId ?? "";
   const currentUserId = session?.user?.id ?? "";
 
-  const [rangeStart, setRangeStart] = useState(() => {
-    const d = new Date();
-    d.setDate(1);
-    return dateKey(d);
-  });
-  const [rangeEnd, setRangeEnd] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() + 1);
-    d.setDate(0);
-    return dateKey(d);
-  });
+  const [ym, setYm] = useState(currentYM);
+  const { start, end } = monthRange(ym);
+  const today = new Date().toLocaleDateString("sv-SE");
 
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
@@ -41,113 +79,138 @@ export default function SchedulePage() {
   );
 
   const { data: daysData } = useSWR(
-    organizationId ? ["scheduleDays", organizationId, rangeStart, rangeEnd] : null,
-    () => api.schedule.days(rangeStart, rangeEnd)
+    organizationId ? ["scheduleDays", organizationId, start, end] : null,
+    () => api.schedule.days(start, end)
   );
 
-  return (
-    <div className="animate-fade-in pb-20">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-        <div>
-          <h1 className="text-3xl font-extrabold mb-2 tracking-tight">シフト一覧</h1>
-          <p className="text-textMuted">スタッフのシフトスケジュールを確認できます。</p>
-        </div>
+  const days = daysData ? buildFullDays(start, end, daysData) : [];
 
-        <div className="glass-card p-3 flex items-center gap-2 shadow-glass self-start md:self-auto">
-          <input
-            type="date"
-            value={rangeStart}
-            onChange={(e) => setRangeStart(e.target.value)}
-            className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-          />
-          <span className="text-textMuted text-xs font-bold">―</span>
-          <input
-            type="date"
-            value={rangeEnd}
-            onChange={(e) => setRangeEnd(e.target.value)}
-            className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-          />
-        </div>
+  return (
+    <div className="max-w-lg mx-auto px-4 pb-20 animate-fade-in">
+      <div className="mb-6 pt-2">
+        <h1 className="text-2xl font-extrabold mb-1 tracking-tight">シフト一覧</h1>
+        <p className="text-textMuted text-sm">スタッフのシフトスケジュールを確認できます。</p>
       </div>
 
-      {!daysData || daysData.length === 0 ? (
-        <div className="glass-card p-12 mt-8 text-center border-dashed flex flex-col items-center justify-center">
-          <svg className="w-16 h-16 text-textMuted/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <h3 className="text-xl font-bold mb-2">スケジュールがありません</h3>
-          <p className="text-textMuted">指定された期間にシフトデータが見つかりません。</p>
-        </div>
-      ) : (
-        <div className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x" style={{ scrollbarWidth: "thin" }}>
-          {daysData.map((d) => {
-            const date = (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10);
-            const { monthDay, weekday } = formatDate(date);
-            const isMyDay = d.shiftAssignments?.some((a) => a.userId === currentUserId);
+      {/* Month picker */}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setYm(shiftYM(ym, -1))}
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
+          ←
+        </button>
+        <input type="month" value={ym} onChange={(e) => setYm(e.target.value)}
+          className="bg-black/40 border border-border/50 rounded-xl px-4 py-2 text-sm font-semibold text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors text-center" />
+        <button onClick={() => setYm(shiftYM(ym, 1))}
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted font-bold transition-colors">
+          →
+        </button>
+      </div>
 
+      {/* Day list */}
+      <div className="flex flex-col gap-3 animate-slide-up">
+        {days.map((d) => {
+          const date = (typeof d.date === "string" ? d.date : new Date(d.date).toISOString()).slice(0, 10);
+          const { monthDay, weekday, dow } = formatDate(date);
+          const isHoliday = d.isHoliday ?? false;
+          const isToday = date === today;
+          const isSun = dow === 0;
+          const isSat = dow === 6;
+          const hasAnyShift = (d.shiftAssignments?.length ?? 0) > 0;
+
+          if (!hasAnyShift && !isToday && !isHoliday) {
             return (
-              <div
-                key={d.id}
-                className={`flex-1 min-w-[180px] max-w-[260px] rounded-2xl border flex flex-col overflow-hidden
-                  ${isMyDay ? "bg-accent/5 border-accent/40" : "bg-surface/30 border-border"}`}
-              >
-                <div className={`p-4 border-b ${isMyDay ? "border-accent/20 bg-black/20" : "border-border/50 bg-black/20"}`}>
-                  <div className="flex items-end gap-1.5">
-                    <span className={`text-xl font-bold tracking-tight ${isMyDay ? "text-accent" : "text-foreground"}`}>
-                      {monthDay}
-                    </span>
-                    <span className={`text-xs font-medium uppercase ${isMyDay ? "text-accent/80" : "text-textMuted"}`}>
-                      {weekday}
-                    </span>
+              <div key={d.id} className="flex items-center gap-3 px-1">
+                <div className={`w-10 text-center shrink-0`}>
+                  <div className={`text-base font-black leading-none
+                    ${isSun ? "text-red-400" : isSat ? "text-sky-400" : "text-foreground/40"}`}>
+                    {monthDay.replace(/\d+\//, "")}
                   </div>
-                  {isMyDay && (
-                    <span className="mt-1.5 inline-block text-[10px] font-bold text-accent bg-accent/10 px-2 py-0.5 rounded-full">
-                      出勤
-                    </span>
-                  )}
+                  <div className={`text-[10px] font-semibold mt-0.5
+                    ${isSun ? "text-red-400/60" : isSat ? "text-sky-400/60" : "text-textMuted/30"}`}>
+                    {weekday}
+                  </div>
                 </div>
-
-                <div className="p-3 flex-1 min-h-[8rem]">
-                  {!users || users.length === 0 ? (
-                    <p className="text-xs text-textMuted/40 text-center pt-6">なし</p>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {users.map((u: User) => {
-                        const a = d.shiftAssignments?.find((sa) => sa.userId === u.id);
-                        if (a) {
-                          return (
-                            <div
-                              key={u.id}
-                              className={`p-2.5 rounded-lg border
-                                ${u.id === currentUserId
-                                  ? "bg-accent/10 border-accent/30"
-                                  : "bg-black/20 border-border/30"
-                                }`}
-                            >
-                              <div className="font-semibold text-sm truncate text-foreground">{u.name}</div>
-                              <div className="text-[11px] text-textMuted mt-0.5">{a.startTime} - {a.endTime}</div>
-                            </div>
-                          );
-                        }
-                        return (
-                          <div
-                            key={u.id}
-                            className={`p-2.5 rounded-lg border border-border/20 flex items-center justify-between
-                              ${u.id === currentUserId ? "bg-accent/5" : "bg-black/10"}`}
-                          >
-                            <div className={`text-sm truncate ${u.id === currentUserId ? "text-foreground/70" : "text-textMuted/60"}`}>{u.name}</div>
-                            <span className="text-[10px] text-textMuted/40 bg-white/5 px-1.5 py-0.5 rounded-full shrink-0 ml-2">休み</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <div className="flex-1 h-px bg-border/20"></div>
               </div>
             );
-          })}
-        </div>
-      )}
+          }
+
+          return (
+            <div key={d.id}
+              className={`glass-card overflow-hidden transition-all
+                ${isToday ? "border-accent/50 bg-accent/5" : ""}
+                ${isHoliday ? "border-red-500/20 bg-red-950/10" : ""}
+              `}>
+              {/* Day header */}
+              <div className={`px-4 py-2.5 flex items-center gap-2 border-b
+                ${isToday ? "border-accent/20 bg-accent/10"
+                : isHoliday ? "border-red-500/15 bg-red-950/20"
+                : isSun ? "border-red-500/15 bg-red-950/10"
+                : isSat ? "border-sky-500/15 bg-sky-950/10"
+                : "border-border/30 bg-black/10"}`}>
+                <span className={`text-base font-black
+                  ${isHoliday ? "text-red-400/70"
+                  : isToday ? "text-accent"
+                  : isSun ? "text-red-400"
+                  : isSat ? "text-sky-400"
+                  : "text-foreground"}`}>
+                  {monthDay}
+                </span>
+                <span className={`text-xs font-semibold
+                  ${isHoliday ? "text-red-400/50"
+                  : isToday ? "text-accent/70"
+                  : isSun ? "text-red-400/70"
+                  : isSat ? "text-sky-400/70"
+                  : "text-textMuted"}`}>
+                  {weekday}
+                </span>
+                {isToday && !isHoliday && (
+                  <span className="ml-auto text-[10px] font-bold text-accent bg-accent/15 border border-accent/30 px-1.5 py-0.5 rounded-full">今日</span>
+                )}
+                {isHoliday && (
+                  <span className="ml-auto text-[10px] font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-1.5 py-0.5 rounded-full">休日</span>
+                )}
+              </div>
+
+              {/* Staff rows */}
+              <div className="divide-y divide-border/20">
+                {(users ?? []).map((u: User) => {
+                  const a = d.shiftAssignments?.find((sa) => sa.userId === u.id);
+                  const leave = d.leaveRecords?.find((l) => l.userId === u.id);
+                  const isMe = u.id === currentUserId;
+
+                  return (
+                    <div key={u.id}
+                      className={`px-4 py-2.5 flex items-center gap-3
+                        ${isMe ? "bg-accent/5" : ""}`}>
+                      <span className={`text-sm font-semibold w-24 shrink-0 truncate
+                        ${isMe ? "text-accent" : "text-foreground"}`}>
+                        {u.name}
+                      </span>
+                      {a ? (
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border border-transparent
+                          ${isMe ? "bg-accent/10 text-accent" : "bg-white/5 text-textMuted"}`}>
+                          {a.startTime} – {a.endTime}
+                        </span>
+                      ) : leave ? (
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border
+                          ${leave.type === "PAID_LEAVE"
+                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                            : "bg-sky-500/15 text-sky-400 border-sky-500/30"
+                          }`}>
+                          {leave.type === "PAID_LEAVE" ? "有給" : "希望休"}
+                        </span>
+                      ) : (
+                        <span className="text-textMuted/30 text-xs">—</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

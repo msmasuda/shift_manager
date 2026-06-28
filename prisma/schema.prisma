@@ -26,6 +26,7 @@ model User {
   name           String
   role           UserRole @default(MEMBER)
   shiftAssignments ShiftAssignment[]
+  leaveRecords     LeaveRecord[]
   @@unique([organizationId, email])
   @@index([organizationId])
 }
@@ -33,6 +34,11 @@ model User {
 enum UserRole {
   ADMIN
   MEMBER
+}
+
+enum LeaveType {
+  PREFERRED_OFF // 希望休
+  PAID_LEAVE    // 有給
 }
 
 // 日付ごとの設定（その日の最低出勤人数・営業時間）
@@ -50,6 +56,19 @@ model ScheduleDay {
   shiftAssignments ShiftAssignment[]
   @@unique([organizationId, date])
   @@index([organizationId])
+}
+
+// 希望休・有給の記録
+model LeaveRecord {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date           DateTime  @db.Date
+  type           LeaveType
+  @@unique([userId, date])
+  @@index([organizationId])
+  @@index([userId])
 }
 
 // シフト割り当て（誰がいつ〜いつ入るか）

@@ -1,4 +1,5 @@
 export type UserRole = "ADMIN" | "MEMBER";
+export type LeaveType = "PREFERRED_OFF" | "PAID_LEAVE";
 
 export interface Organization {
   id: string;
@@ -26,6 +27,14 @@ export interface ScheduleDay {
   openTime2?: string | null;
   closeTime2?: string | null;
   shiftAssignments: ShiftAssignment[];
+  leaveRecords: LeaveRecord[];
+}
+
+export interface LeaveRecord {
+  id: string;
+  userId: string;
+  date: string;
+  type: LeaveType;
 }
 
 export interface ShiftAssignment {
