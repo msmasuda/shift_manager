@@ -87,7 +87,7 @@ export default function AdminPage() {
     () => api.schedule.days(rangeStart, rangeEnd)
   );
 
-  const { data: warningsData } = useSWR(
+  const { data: warningsData, mutate: mutateWarnings } = useSWR(
     organizationId ? ["warnings", organizationId, rangeStart, rangeEnd] : null,
     () => api.schedule.warnings(rangeStart, rangeEnd)
   );
@@ -95,7 +95,7 @@ export default function AdminPage() {
   const [warningsExpanded, setWarningsExpanded] = useState(true);
 
   const refreshSchedule = async () => {
-    await mutateDays();
+    await Promise.all([mutateDays(), mutateWarnings()]);
   };
 
   const sensors = useSensors(
