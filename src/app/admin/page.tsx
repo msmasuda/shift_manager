@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
+import type { LaborViolation } from "@/types";
 import {
   DndContext,
   type DragEndEvent,
@@ -86,6 +87,13 @@ export default function AdminPage() {
     () => api.schedule.days(rangeStart, rangeEnd)
   );
 
+  const { data: warningsData } = useSWR(
+    organizationId ? ["warnings", organizationId, rangeStart, rangeEnd] : null,
+    () => api.schedule.warnings(rangeStart, rangeEnd)
+  );
+  const laborViolations: LaborViolation[] = warningsData?.laborViolations ?? [];
+  const [warningsExpanded, setWarningsExpanded] = useState(true);
+
   const refreshSchedule = async () => {
     await mutateDays();
   };
@@ -152,6 +160,46 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {/* 労務警告バナー */}
+      {laborViolations.length > 0 && (
+        <div className="glass-card border-red-500/30 bg-red-950/20 p-4 mb-6 animate-slide-up">
+          <button
+            className="flex items-center gap-2 w-full text-left"
+            onClick={() => setWarningsExpanded((v) => !v)}
+          >
+            <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-sm font-bold text-red-400 flex-1">
+              労務注意事項 {laborViolations.length}件
+            </span>
+            <svg
+              className={`w-3.5 h-3.5 text-red-400/60 transition-transform ${warningsExpanded ? "rotate-180" : ""}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {warningsExpanded && (
+            <ul className="mt-3 flex flex-col gap-1.5 pl-6">
+              {laborViolations.map((v, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs">
+                  <span className={`mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                    v.type === "CONSECUTIVE_DAYS"
+                      ? "bg-orange-500/20 text-orange-300"
+                      : "bg-red-500/20 text-red-300"
+                  }`}>
+                    {v.type === "CONSECUTIVE_DAYS" ? "連続出勤" : "週超過"}
+                  </span>
+                  <span className="font-bold text-red-200">{v.userName}</span>
+                  <span className="text-red-300/70">{v.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {isUpdating && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-accent/50 bg-accent/10 flex items-center gap-3 shadow-glow rounded-full">

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
-import type { TimeGap } from "@/types";
+import type { TimeGap, LaborViolation } from "@/types";
 
 const daysQuerySchema = z.object({
   from: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -16,6 +16,20 @@ function toMinutes(t: string): number {
 
 function toTimeStr(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function shiftDuration(start: string, end: string): number {
+  const s = toMinutes(start);
+  let e = toMinutes(end);
+  if (e <= s) e += 24 * 60; // midnight crossing
+  return e - s;
+}
+
+function getISOWeekStart(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  const day = d.getUTCDay();
+  d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
+  return d.toISOString().slice(0, 10);
 }
 
 function detectGapsForSession(
@@ -68,6 +82,74 @@ function detectGaps(
   return [...gaps1, ...gaps2];
 }
 
+type UserShiftRecord = {
+  name: string;
+  shifts: { date: string; startTime: string; endTime: string }[];
+};
+
+function checkLaborViolations(userShifts: Map<string, UserShiftRecord>): LaborViolation[] {
+  const violations: LaborViolation[] = [];
+
+  for (const [userId, { name, shifts }] of userShifts) {
+    const sorted = [...shifts].sort((a, b) => a.date.localeCompare(b.date));
+    const dates = sorted.map((s) => s.date);
+
+    // 連続勤務チェック（7日以上で違反）
+    if (dates.length >= 7) {
+      let runStart = 0;
+      let runLen = 1;
+      for (let i = 1; i < dates.length; i++) {
+        const diffDays =
+          (new Date(dates[i] + "T00:00:00Z").getTime() -
+            new Date(dates[i - 1] + "T00:00:00Z").getTime()) /
+          86400000;
+        if (diffDays === 1) {
+          runLen++;
+        } else {
+          if (runLen >= 7) {
+            violations.push({
+              userId,
+              userName: name,
+              type: "CONSECUTIVE_DAYS",
+              detail: `${dates[runStart]} から ${runLen} 日連続出勤`,
+            });
+          }
+          runStart = i;
+          runLen = 1;
+        }
+      }
+      if (runLen >= 7) {
+        violations.push({
+          userId,
+          userName: name,
+          type: "CONSECUTIVE_DAYS",
+          detail: `${dates[runStart]} から ${runLen} 日連続出勤`,
+        });
+      }
+    }
+
+    // 週40時間超チェック（ISO週：月〜日）
+    const weekMinutes = new Map<string, number>();
+    for (const s of sorted) {
+      const weekStart = getISOWeekStart(s.date);
+      weekMinutes.set(weekStart, (weekMinutes.get(weekStart) ?? 0) + shiftDuration(s.startTime, s.endTime));
+    }
+    for (const [weekStart, total] of weekMinutes) {
+      if (total > 40 * 60) {
+        const hours = (total / 60).toFixed(1);
+        violations.push({
+          userId,
+          userName: name,
+          type: "WEEKLY_HOURS",
+          detail: `${weekStart} 週: 週 ${hours} 時間（法定40時間超）`,
+        });
+      }
+    }
+  }
+
+  return violations;
+}
+
 export async function GET(request: Request) {
   try {
     const session = await auth();
@@ -88,11 +170,16 @@ export async function GET(request: Request) {
       prisma.scheduleDay.findMany({
         where: { organizationId, date: { gte: new Date(from), lte: new Date(to) } },
         orderBy: { date: "asc" },
-        include: { shiftAssignments: true },
+        include: {
+          shiftAssignments: {
+            include: { user: { select: { name: true } } },
+          },
+        },
       }),
     ]);
 
-    const result = days
+    // スタッフ充足・カバレッジ警告
+    const staffWarnings = days
       .filter((d) => !d.isHoliday)
       .map((d) => {
         const uniqueCount = new Set(d.shiftAssignments.map((a) => a.userId)).size;
@@ -119,7 +206,24 @@ export async function GET(request: Request) {
       })
       .filter((w) => w.insufficient || w.gaps.length > 0);
 
-    return NextResponse.json(result);
+    // 労務違反チェック
+    const userShifts = new Map<string, UserShiftRecord>();
+    for (const day of days) {
+      const dateStr = (day.date as Date).toISOString().slice(0, 10);
+      for (const a of day.shiftAssignments) {
+        if (!userShifts.has(a.userId)) {
+          userShifts.set(a.userId, { name: a.user.name, shifts: [] });
+        }
+        userShifts.get(a.userId)!.shifts.push({
+          date: dateStr,
+          startTime: a.startTime,
+          endTime: a.endTime,
+        });
+      }
+    }
+    const laborViolations = checkLaborViolations(userShifts);
+
+    return NextResponse.json({ staffWarnings, laborViolations });
   } catch (error) {
     console.error("GET /api/schedule/warnings error:", error);
     if (error instanceof z.ZodError) {

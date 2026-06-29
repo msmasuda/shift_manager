@@ -61,3 +61,15 @@ export interface ScheduleWarning {
   closeTime?: string;
   gaps: TimeGap[];
 }
+
+export interface LaborViolation {
+  userId: string;
+  userName: string;
+  type: "WEEKLY_HOURS" | "CONSECUTIVE_DAYS";
+  detail: string;
+}
+
+export interface WarningsResponse {
+  staffWarnings: ScheduleWarning[];
+  laborViolations: LaborViolation[];
+}

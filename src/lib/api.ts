@@ -1,4 +1,4 @@
-import type { User, Organization, ScheduleDay, ShiftAssignment, ScheduleWarning, LeaveRecord, LeaveType } from "@/types";
+import type { User, Organization, ScheduleDay, ShiftAssignment, WarningsResponse, LeaveRecord, LeaveType } from "@/types";
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
@@ -73,7 +73,7 @@ export const api = {
     setHours: (date: string, openTime: string | null, closeTime: string | null, openTime2?: string | null, closeTime2?: string | null) =>
       put<ScheduleDay>(`/api/schedule/days/${date}`, { openTime, closeTime, openTime2, closeTime2 }),
     warnings: (from: string, to: string) =>
-      get<ScheduleWarning[]>("/api/schedule/warnings", { from, to }),
+      get<WarningsResponse>("/api/schedule/warnings", { from, to }),
   },
   shifts: {
     my: (from?: string, to?: string) =>
