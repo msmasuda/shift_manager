@@ -3,11 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import bcryptjs from "bcryptjs";
 
 const createUserSchema = z.object({
   email: z.string().email("Invalid email"),
   name: z.string().min(1, "Name is required"),
   role: z.enum(["ADMIN", "MEMBER"]).optional(),
+  password: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
 
 export async function GET() {
@@ -45,7 +47,8 @@ export async function POST(request: Request) {
     const { organizationId } = session.user;
 
     const body = await request.json();
-    const { email, name, role } = createUserSchema.parse(body);
+    const { email, name, role, password } = createUserSchema.parse(body);
+    const passwordHash = password ? await bcryptjs.hash(password, 12) : undefined;
 
     const user = await prisma.user.create({
       data: {
@@ -53,6 +56,7 @@ export async function POST(request: Request) {
         email,
         name,
         role: role ?? "MEMBER",
+        ...(passwordHash && { passwordHash }),
       },
     });
     return NextResponse.json(user, { status: 201 });

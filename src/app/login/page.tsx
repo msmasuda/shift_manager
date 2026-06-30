@@ -1,23 +1,35 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useState, Suspense } from "react";
-
-const isDev = process.env.NODE_ENV === "development";
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const error = searchParams.get("error");
-  const [devEmail, setDevEmail] = useState("");
-  const [devLoading, setDevLoading] = useState(false);
 
-  const handleDevLogin = async (e: React.FormEvent) => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [credError, setCredError] = useState("");
+
+  const handleCredentialsLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!devEmail.trim()) return;
-    setDevLoading(true);
-    await signIn("dev-credentials", { email: devEmail.trim(), callbackUrl: "/" });
-    setDevLoading(false);
+    if (!email.trim() || !password) return;
+    setLoading(true);
+    setCredError("");
+    const result = await signIn("credentials", {
+      email: email.trim(),
+      password,
+      redirect: false,
+    });
+    setLoading(false);
+    if (result?.error) {
+      setCredError("メールアドレスまたはパスワードが正しくありません");
+    } else {
+      router.push("/");
+    }
   };
 
   return (
@@ -25,10 +37,10 @@ function LoginContent() {
       <div className="glass-card p-10 max-w-md w-full text-center">
         <h1 className="text-2xl font-bold mb-2">サインイン</h1>
         <p className="text-textMuted text-sm mb-8">
-          管理者に事前登録されたGoogleアカウントでサインインしてください。
+          管理者に事前登録されたアカウントでサインインしてください。
         </p>
 
-        {(error === "AccessDenied" || error === "CredentialsSignin") && (
+        {(error === "AccessDenied") && (
           <div className="mb-6 p-3 rounded-lg bg-warn/10 border border-warn/30 text-warn text-sm">
             このメールアドレスは登録されていません。管理者にお問い合わせください。
           </div>
@@ -47,27 +59,43 @@ function LoginContent() {
           Googleでサインイン
         </button>
 
-        {isDev && (
-          <div className="mt-8 pt-6 border-t border-border/30">
-            <p className="text-xs text-textMuted mb-3 font-mono">DEV ONLY — メールアドレスで直接ログイン</p>
-            <form onSubmit={handleDevLogin} className="flex gap-2">
-              <input
-                type="email"
-                value={devEmail}
-                onChange={(e) => setDevEmail(e.target.value)}
-                placeholder="登録済みメールアドレス"
-                className="styled-input flex-1 text-sm"
-              />
-              <button
-                type="submit"
-                disabled={devLoading}
-                className="btn-primary px-4 text-sm whitespace-nowrap"
-              >
-                {devLoading ? "..." : "ログイン"}
-              </button>
-            </form>
+        <div className="flex items-center gap-3 my-6">
+          <div className="flex-1 border-t border-border/30" />
+          <span className="text-xs text-textMuted">または</span>
+          <div className="flex-1 border-t border-border/30" />
+        </div>
+
+        {credError && (
+          <div className="mb-4 p-3 rounded-lg bg-warn/10 border border-warn/30 text-warn text-sm">
+            {credError}
           </div>
         )}
+
+        <form onSubmit={handleCredentialsLogin} className="flex flex-col gap-3 text-left">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="メールアドレス"
+            required
+            className="styled-input"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="パスワード"
+            required
+            className="styled-input"
+          />
+          <button
+            type="submit"
+            disabled={loading || !email.trim() || !password}
+            className="btn-primary w-full py-3 mt-1"
+          >
+            {loading ? "ログイン中..." : "ログイン"}
+          </button>
+        </form>
       </div>
     </div>
   );

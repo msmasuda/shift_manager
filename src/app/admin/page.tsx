@@ -71,6 +71,7 @@ export default function AdminPage() {
   });
   const { start: rangeStart, end: rangeEnd } = monthRange(currentMonth);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
@@ -138,25 +139,46 @@ export default function AdminPage() {
           <p className="text-textMuted">シフトの管理・スケジュールの編成を行います。</p>
         </div>
 
-        {/* Month Picker */}
-        <div className="glass-card p-3 flex items-center gap-2 shadow-glass self-start md:self-auto">
+        {/* Month Picker + Export */}
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="glass-card p-3 flex items-center gap-2 shadow-glass">
+            <button
+              onClick={() => setCurrentMonth(shiftYM(currentMonth, -1))}
+              className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
+            >
+              ←
+            </button>
+            <input
+              type="month"
+              value={currentMonth}
+              onChange={(e) => setCurrentMonth(e.target.value)}
+              className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
+            />
+            <button
+              onClick={() => setCurrentMonth(shiftYM(currentMonth, 1))}
+              className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
+            >
+              →
+            </button>
+          </div>
           <button
-            onClick={() => setCurrentMonth(shiftYM(currentMonth, -1))}
-            className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
+            onClick={async () => {
+              if (!daysData || !users) return;
+              setExporting(true);
+              try {
+                const { exportShifts } = await import("@/lib/exportShifts");
+                exportShifts(buildFullDays(rangeStart, rangeEnd, daysData), users, currentMonth);
+              } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={exporting || !daysData || !users}
+            className="btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-40"
           >
-            ←
-          </button>
-          <input
-            type="month"
-            value={currentMonth}
-            onChange={(e) => setCurrentMonth(e.target.value)}
-            className="bg-black/40 border border-border/50 rounded-md px-2 py-1.5 text-sm text-foreground focus:outline-none focus:border-accent hover:border-textMuted transition-colors"
-          />
-          <button
-            onClick={() => setCurrentMonth(shiftYM(currentMonth, 1))}
-            className="px-2.5 py-1.5 rounded-md bg-black/30 border border-border/50 text-textMuted hover:text-foreground hover:border-textMuted text-sm font-bold transition-colors"
-          >
-            →
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {exporting ? "出力中..." : "Excel出力"}
           </button>
         </div>
       </div>

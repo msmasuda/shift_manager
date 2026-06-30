@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import bcryptjs from "bcryptjs";
 import "dotenv/config";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg(process.env.DATABASE_URL!) });
@@ -29,6 +30,15 @@ const companies = [
 async function main() {
   console.log("Seeding started...");
 
+  // 既存データがあればスキップ
+  const existingOrg = await prisma.organization.findFirst();
+  if (existingOrg) {
+    console.log("Data already exists. Skipping seed.");
+    return;
+  }
+
+  const passwordHash = await bcryptjs.hash("password123", 12);
+
   for (const company of companies) {
     const org = await prisma.organization.create({
       data: { name: company.name },
@@ -37,15 +47,20 @@ async function main() {
     const users = [];
     for (const u of company.users) {
       const user = await prisma.user.create({
-        data: { organizationId: org.id, ...u },
+        data: { organizationId: org.id, ...u, passwordHash },
       });
       users.push(user);
     }
 
     const today = new Date();
-    for (let i = 0; i < 14; i++) {
-      const d = new Date();
-      d.setDate(today.getDate() + i);
+    // 今月1日から末日まで生成
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    const totalDays = endOfMonth.getDate();
+
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(startOfMonth);
+      d.setDate(startOfMonth.getDate() + i);
       d.setHours(0, 0, 0, 0);
 
       const minRequired = Math.floor(Math.random() * 3) + 2;
