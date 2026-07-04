@@ -73,3 +73,7 @@ Organization ──< ScheduleDay ──< ShiftAssignment >── User
 ### Testing
 
 Tests live in `src/__tests__/api/` and test Route Handler functions directly (not via HTTP). They mock `@/lib/prisma` with `vi.mock` and import handler functions (`POST`, `PATCH`, `DELETE`) to call them with synthetic `Request` objects.
+
+## コーディング規約
+- 編集作業は、必ずdevelopブランチからトピックブランチを作成技作業すること。
+- developブランチを、勝手にmasterブランチにマージしないこと。
