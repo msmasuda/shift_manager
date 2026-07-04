@@ -33,7 +33,10 @@ const credentialsProvider = Credentials({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  providers: [Google, credentialsProvider],
+  providers: [
+    ...(process.env.AUTH_GOOGLE_ID ? [Google] : []),
+    credentialsProvider,
+  ],
   callbacks: {
     ...authConfig.callbacks,
     signIn: async ({ user }) => {
