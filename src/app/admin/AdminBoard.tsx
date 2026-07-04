@@ -33,6 +33,7 @@ function DraggableCard({
   userName,
   startTime,
   endTime,
+  readOnly,
   onUpdate,
   onDelete,
 }: {
@@ -41,12 +42,14 @@ function DraggableCard({
   userName: string;
   startTime: string;
   endTime: string;
+  readOnly: boolean;
   onUpdate: (startTime: string, endTime: string) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id,
     data: { assignmentId },
+    disabled: readOnly,
   });
 
   const [isEditing, setIsEditing] = useState(false);
@@ -84,17 +87,18 @@ function DraggableCard({
   return (
     <div
       ref={setNodeRef}
-      {...(isEditing ? {} : listeners)}
-      {...(isEditing ? {} : attributes)}
+      {...(isEditing || readOnly ? {} : listeners)}
+      {...(isEditing || readOnly ? {} : attributes)}
       data-testid="shift-card"
-      className={`glass-card p-3 mb-3 flex flex-col gap-1.5 hover:border-accent/50 group relative
-        ${isEditing ? "cursor-default ring-1 ring-accent/30" : "cursor-grab"}
+      className={`glass-card p-3 mb-3 flex flex-col gap-1.5 group relative
+        ${readOnly ? "cursor-default opacity-80" : "hover:border-accent/50"}
+        ${isEditing ? "cursor-default ring-1 ring-accent/30" : readOnly ? "" : "cursor-grab"}
         ${isDragging ? "opacity-90 ring-2 ring-accent shadow-[0_10px_40px_rgba(99,102,241,0.3)] scale-[1.02] z-50 rotate-1" : ""}
       `}
       style={{ touchAction: 'none' }}
     >
-      {/* Drag handle — hidden while editing */}
-      {!isEditing && (
+      {/* Drag handle — hidden while editing or read-only */}
+      {!isEditing && !readOnly && (
         <div className="absolute left-2 top-0 bottom-0 w-1 flex flex-col justify-center gap-[2px] opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
           <div className="w-1 h-1 rounded-full bg-textMuted/40"></div>
@@ -103,7 +107,7 @@ function DraggableCard({
       )}
 
       {/* Edit / Delete buttons */}
-      {!isEditing && (
+      {!isEditing && !readOnly && (
         <div className="absolute right-2 top-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
           <button
             data-testid="edit-shift-btn"
@@ -182,11 +186,13 @@ function HolidayCard({
   userName,
   defaultStart,
   defaultEnd,
+  readOnly,
   onAdd,
 }: {
   userName: string;
   defaultStart: string;
   defaultEnd: string;
+  readOnly: boolean;
   onAdd: (startTime: string, endTime: string) => Promise<void>;
 }) {
   const [isAdding, setIsAdding] = useState(false);
@@ -210,6 +216,22 @@ function HolidayCard({
     setAddEnd(defaultEnd);
     setIsAdding(false);
   };
+
+  if (readOnly) {
+    return (
+      <div
+        data-testid="holiday-card"
+        className="glass-card p-3 mb-3 flex flex-col gap-1.5 opacity-30"
+      >
+        <div className="pl-2 font-semibold text-sm text-foreground truncate">{userName}</div>
+        <div className="pl-2 flex items-center gap-2">
+          <div className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-textMuted text-[11px] font-bold tracking-wide">
+            休み
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -277,6 +299,7 @@ function DayColumn({
   minRequired,
   isHoliday,
   isToday,
+  isPast,
   openTime,
   closeTime,
   openTime2,
@@ -293,6 +316,7 @@ function DayColumn({
   minRequired: number;
   isHoliday: boolean;
   isToday: boolean;
+  isPast: boolean;
   openTime?: string | null;
   closeTime?: string | null;
   openTime2?: string | null;
@@ -308,6 +332,7 @@ function DayColumn({
   const { setNodeRef, isOver } = useDroppable({
     id: `day-${date}`,
     data: { date },
+    disabled: isPast,
   });
   const [editingHours, setEditingHours] = useState(false);
   const [editOpen, setEditOpen] = useState(openTime ?? "");
@@ -345,6 +370,7 @@ function DayColumn({
     <div
       ref={setNodeRef}
       className={`w-[240px] shrink-0 rounded-2xl border transition-all duration-300 flex flex-col overflow-hidden
+        ${isPast ? "opacity-60" : ""}
         ${isOver ? "bg-accent/5 border-accent shadow-[0_0_30px_rgba(99,102,241,0.15)] scale-[1.01]" :
           isHoliday ? "bg-red-950/20 border-red-500/30" :
           isToday ? "bg-accent/5 border-accent/50 shadow-[0_0_20px_rgba(99,102,241,0.1)]" :
@@ -371,36 +397,52 @@ function DayColumn({
                 休日
               </span>
             )}
+            {isPast && (
+              <span className="flex items-center gap-0.5 text-[10px] font-bold text-textMuted bg-white/5 border border-white/10 px-1.5 py-0.5 rounded-full" title="過去の日付は編集できません">
+                <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                ロック
+              </span>
+            )}
           </div>
 
           <div className="flex flex-col items-end gap-1.5">
-            <button
-              onClick={handleToggleHoliday}
-              disabled={togglingHoliday}
-              title={isHoliday ? "休日を解除" : "休日に設定"}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all disabled:opacity-50
-                ${isHoliday
-                  ? "bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30"
-                  : "bg-black/20 border-border/50 text-textMuted hover:border-red-500/40 hover:text-red-400"
-                }`}
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              {isHoliday ? "休日解除" : "休日設定"}
-            </button>
+            {!isPast && (
+              <button
+                onClick={handleToggleHoliday}
+                disabled={togglingHoliday}
+                title={isHoliday ? "休日を解除" : "休日に設定"}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition-all disabled:opacity-50
+                  ${isHoliday
+                    ? "bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30"
+                    : "bg-black/20 border-border/50 text-textMuted hover:border-red-500/40 hover:text-red-400"
+                  }`}
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {isHoliday ? "休日解除" : "休日設定"}
+              </button>
+            )}
             <div className="flex flex-col items-end">
               <span className="text-[10px] text-textMuted uppercase font-semibold mb-1">最低人数</span>
               <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md border ${warn ? 'border-warn/50' : 'border-transparent hover:border-border transition-colors'} bg-black/30`}>
-                <button
-                  className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
-                  onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
-                >-</button>
-                <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
-                <button
-                  className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
-                  onClick={() => onUpdateMinRequired(date, minRequired + 1)}
-                >+</button>
+                {isPast ? (
+                  <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
+                ) : (
+                  <>
+                    <button
+                      className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                      onClick={() => { if(minRequired > 0) onUpdateMinRequired(date, minRequired - 1) }}
+                    >-</button>
+                    <span className="text-sm font-mono w-4 text-center">{minRequired}</span>
+                    <button
+                      className="w-5 h-5 flex items-center justify-center text-textMuted hover:text-white rounded hover:bg-white/10"
+                      onClick={() => onUpdateMinRequired(date, minRequired + 1)}
+                    >+</button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -408,7 +450,7 @@ function DayColumn({
 
         {/* 営業時間 */}
         <div className="mt-2.5">
-          {editingHours ? (
+          {editingHours && !isPast ? (
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center gap-1">
                 <span className="text-[10px] text-textMuted/60 shrink-0 w-5">昼</span>
@@ -436,6 +478,18 @@ function DayColumn({
                   取消
                 </button>
               </div>
+            </div>
+          ) : isPast ? (
+            <div className="flex flex-col gap-0.5 text-[10px] text-textMuted/60 w-full text-left">
+              <div className="flex items-center gap-1.5">
+                <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{openTime && closeTime ? `昼 ${openTime}–${closeTime}` : "営業時間 未設定"}</span>
+              </div>
+              {openTime2 && closeTime2 && (
+                <div className="pl-4.5 ml-[18px]">夜 {openTime2}–{closeTime2}</div>
+              )}
             </div>
           ) : (
             <button onClick={() => setEditingHours(true)}
@@ -499,6 +553,7 @@ function DayColumn({
                     userName={u.name}
                     startTime={a.startTime}
                     endTime={a.endTime}
+                    readOnly={isPast}
                     onUpdate={async (startTime, endTime) => {
                       await api.shifts.update(a.id, { startTime, endTime });
                       await onRefresh();
@@ -533,6 +588,7 @@ function DayColumn({
                   userName={u.name}
                   defaultStart={openTime ?? "09:00"}
                   defaultEnd={closeTime ?? "18:00"}
+                  readOnly={isPast}
                   onAdd={async (startTime, endTime) => {
                     await api.shifts.create({ date, userId: u.id, startTime, endTime });
                     await onRefresh();
@@ -598,6 +654,7 @@ export function AdminBoard({
             minRequired={d.minRequired}
             isHoliday={d.isHoliday ?? false}
             isToday={dateStr === today}
+            isPast={dateStr < today}
             openTime={d.openTime ?? orgOpenTime}
             closeTime={d.closeTime ?? orgCloseTime}
             openTime2={d.openTime2 ?? orgOpenTime2}
