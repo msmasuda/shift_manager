@@ -78,6 +78,8 @@ export const api = {
       put<ScheduleDay>(`/api/schedule/days/${date}`, { openTime, closeTime, openTime2, closeTime2 }),
     warnings: (from: string, to: string) =>
       get<WarningsResponse>("/api/schedule/warnings", { from, to }),
+    bulkFill: (from: string, to: string) =>
+      post<{ created: number }>("/api/schedule/bulk-fill", { from, to }),
   },
   shifts: {
     my: (from?: string, to?: string) =>
