@@ -144,6 +144,11 @@ export default function AdminPage() {
           : "追加できるシフトはありませんでした"
       );
       setTimeout(() => setBulkFillMessage(""), 3000);
+    } catch (e) {
+      setBulkFillMessage(
+        e instanceof Error ? `一括入力に失敗しました: ${e.message}` : "一括入力に失敗しました"
+      );
+      setTimeout(() => setBulkFillMessage(""), 3000);
     } finally {
       setBulkFilling(false);
     }
