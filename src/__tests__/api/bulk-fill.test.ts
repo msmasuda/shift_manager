@@ -106,7 +106,10 @@ describe("POST /api/schedule/bulk-fill", () => {
       { userId: "user-2", date: new Date("2026-01-16T00:00:00.000Z") }, // user-2 off on 1/16
     ] as any);
     txMock.scheduleDay.upsert.mockResolvedValueOnce({ id: "day-18" });
-    txMock.shiftAssignment.createMany.mockResolvedValueOnce({ count: 2 });
+    // count: 1 (not 2, the attempted-row count) proves the route reports createMany's
+    // actual BatchPayload.count rather than membersToFill.length — e.g. if Postgres
+    // skipped one row via skipDuplicates, the response must reflect that.
+    txMock.shiftAssignment.createMany.mockResolvedValueOnce({ count: 1 });
 
     // range: 1/16 (existing day, holiday=false), 1/17 (holiday), 1/18 (no ScheduleDay row yet)
     const res = await POST(makeRequest({ from: "2026-01-16", to: "2026-01-18" }));
@@ -115,8 +118,9 @@ describe("POST /api/schedule/bulk-fill", () => {
 
     // 1/16: user-1 skipped (already assigned), user-2 skipped (leave) => 0 created
     // 1/17: holiday => 0 created
-    // 1/18: no existing day => both user-1 and user-2 filled => 2 created
-    expect(body.created).toBe(2);
+    // 1/18: no existing day => both user-1 and user-2 attempted, but createMany's
+    //   BatchPayload reports only 1 actually created (e.g. skipDuplicates skipped one)
+    expect(body.created).toBe(1);
     expect(txMock.scheduleDay.upsert).toHaveBeenCalledTimes(1);
     expect(txMock.shiftAssignment.createMany).toHaveBeenCalledTimes(1);
     expect(txMock.shiftAssignment.createMany).toHaveBeenCalledWith({
