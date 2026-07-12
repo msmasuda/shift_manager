@@ -22,6 +22,8 @@ npx prisma studio         # Open Prisma Studio GUI
 npx prisma db seed        # Seed with tsx prisma/seed.ts
 ```
 
+**After pulling a `schema.prisma` change:** run `npx prisma generate` and then fully stop and restart `npm run dev`. Regenerating the client alone is not enough — an already-running dev server keeps the old generated client loaded in memory, so `select`ing a newly-added field fails with `Unknown field ... for select statement` until the server process is restarted.
+
 ## Environment Setup
 
 Copy `.env.example` to `.env` and configure `DATABASE_URL`. The default points to `192.168.100.2:5432`; use `docker-compose up -d` to spin up a local PostgreSQL instance on the same port instead.
@@ -47,6 +49,7 @@ src/
       schedule/warnings/
       leave/[id]/
     admin/         # Admin dashboard (client components + DnD)
+      members/     # Per-member default shift time settings
     my-shifts/     # Member view
     login/         # Sign-in page
   lib/
@@ -74,7 +77,8 @@ User ──< LeaveRecord
 - `ShiftAssignment` stores `startTime`/`endTime` as `"HH:MM"` strings (not `DateTime`).
 - `LeaveRecord` tracks `PREFERRED_OFF`/`PAID_LEAVE` per user per day (unique on `userId`+`date`).
 - `User.passwordHash` is optional (only set for Credentials/email-password sign-in; Google-only users have none).
-- One user per day per organization: duplicate assignment returns 409.
+- `User.defaultStartTime`/`defaultEndTime` (optional `"HH:MM"`) are a member's usual shift hours, set on `/admin/members`; used by `POST /api/schedule/bulk-fill` to bulk-create shifts for a date range, skipping holidays, past days, and days where the member already has a shift or leave record.
+- One user per day per organization: duplicate assignment returns 409, backed by a DB-level `@@unique([scheduleDayId, userId])` on `ShiftAssignment` (not just the app-level check).
 
 ### Key Patterns
 
