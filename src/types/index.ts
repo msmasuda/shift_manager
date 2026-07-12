@@ -15,6 +15,8 @@ export interface User {
   name: string;
   email: string;
   role: UserRole;
+  defaultStartTime?: string | null;
+  defaultEndTime?: string | null;
 }
 
 export interface ScheduleDay {

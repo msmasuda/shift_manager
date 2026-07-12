@@ -26,6 +26,8 @@ model User {
   name           String
   role           UserRole @default(MEMBER)
   passwordHash   String?
+  defaultStartTime String? // "HH:MM" 基本の出勤時刻（一括シフト入力で使用）
+  defaultEndTime   String? // "HH:MM" 基本の退勤時刻（一括シフト入力で使用）
   shiftAssignments ShiftAssignment[]
   leaveRecords     LeaveRecord[]
   @@index([organizationId])
@@ -80,6 +82,7 @@ model ShiftAssignment {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   startTime     String   // "09:00" 形式
   endTime       String   // "18:00" 形式
+  @@unique([scheduleDayId, userId])
   @@index([scheduleDayId])
   @@index([userId])
 }

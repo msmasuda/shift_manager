@@ -26,6 +26,15 @@ function NavLinks({ isAdmin, onClose }: { isAdmin: boolean; onClose?: () => void
       </Link>
       {isAdmin && (
         <Link
+          href="/admin/members"
+          onClick={onClose}
+          className="text-sm font-medium text-textMuted hover:text-white transition-colors"
+        >
+          メンバー管理
+        </Link>
+      )}
+      {isAdmin && (
+        <Link
           href="/admin/organization"
           onClick={onClose}
           className="text-sm font-medium text-textMuted hover:text-white transition-colors"
