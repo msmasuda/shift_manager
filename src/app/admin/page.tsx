@@ -73,6 +73,8 @@ export default function AdminPage() {
   const { start: rangeStart, end: rangeEnd } = monthRange(currentMonth);
   const [isUpdating, setIsUpdating] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [bulkFilling, setBulkFilling] = useState(false);
+  const [bulkFillMessage, setBulkFillMessage] = useState("");
 
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
@@ -130,6 +132,23 @@ export default function AdminPage() {
     await refreshSchedule();
   };
 
+  const handleBulkFill = async () => {
+    setBulkFilling(true);
+    setBulkFillMessage("");
+    try {
+      const { created } = await api.schedule.bulkFill(rangeStart, rangeEnd);
+      await refreshSchedule();
+      setBulkFillMessage(
+        created > 0
+          ? `${created}件のシフトを追加しました`
+          : "追加できるシフトはありませんでした"
+      );
+      setTimeout(() => setBulkFillMessage(""), 3000);
+    } finally {
+      setBulkFilling(false);
+    }
+  };
+
   return (
     <div className="animate-fade-in pb-20">
 
@@ -162,6 +181,16 @@ export default function AdminPage() {
               →
             </button>
           </div>
+          <button
+            onClick={handleBulkFill}
+            disabled={bulkFilling}
+            className="btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-40"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {bulkFilling ? "入力中..." : "一括入力"}
+          </button>
           <button
             onClick={async () => {
               if (!daysData || !users) return;
@@ -228,6 +257,15 @@ export default function AdminPage() {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-accent/50 bg-accent/10 flex items-center gap-3 shadow-glow rounded-full">
            <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin"></div>
            <span className="text-sm font-medium text-accent">更新を保存中...</span>
+        </div>
+      )}
+
+      {bulkFillMessage && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-success/50 bg-success/10 flex items-center gap-3 shadow-glow rounded-full">
+          <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-sm font-medium text-success">{bulkFillMessage}</span>
         </div>
       )}
 
