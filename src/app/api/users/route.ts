@@ -23,7 +23,14 @@ export async function GET() {
     const users = await prisma.user.findMany({
       where: { organizationId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, email: true, role: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        defaultStartTime: true,
+        defaultEndTime: true,
+      },
     });
     return NextResponse.json(users);
   } catch (error) {
