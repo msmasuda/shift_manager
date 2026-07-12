@@ -106,6 +106,7 @@ describe("POST /api/schedule/bulk-fill", () => {
       { userId: "user-2", date: new Date("2026-01-16T00:00:00.000Z") }, // user-2 off on 1/16
     ] as any);
     txMock.scheduleDay.upsert.mockResolvedValueOnce({ id: "day-18" });
+    txMock.shiftAssignment.createMany.mockResolvedValueOnce({ count: 2 });
 
     // range: 1/16 (existing day, holiday=false), 1/17 (holiday), 1/18 (no ScheduleDay row yet)
     const res = await POST(makeRequest({ from: "2026-01-16", to: "2026-01-18" }));
@@ -123,6 +124,7 @@ describe("POST /api/schedule/bulk-fill", () => {
         { scheduleDayId: "day-18", userId: "user-1", startTime: "10:00", endTime: "19:00" },
         { scheduleDayId: "day-18", userId: "user-2", startTime: "12:00", endTime: "20:00" },
       ]),
+      skipDuplicates: true,
     });
   });
 });

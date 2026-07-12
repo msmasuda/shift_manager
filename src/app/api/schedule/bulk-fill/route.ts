@@ -108,15 +108,16 @@ export async function POST(request: Request) {
               })
             ).id;
 
-        await tx.shiftAssignment.createMany({
+        const result = await tx.shiftAssignment.createMany({
           data: membersToFill.map((m) => ({
             scheduleDayId,
             userId: m.id,
             startTime: m.defaultStartTime!,
             endTime: m.defaultEndTime!,
           })),
+          skipDuplicates: true,
         });
-        count += membersToFill.length;
+        count += result.count;
       }
       return count;
     });

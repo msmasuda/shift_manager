@@ -82,6 +82,7 @@ model ShiftAssignment {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   startTime     String   // "09:00" 形式
   endTime       String   // "18:00" 形式
+  @@unique([scheduleDayId, userId])
   @@index([scheduleDayId])
   @@index([userId])
 }
