@@ -87,9 +87,13 @@ User ──< LeaveRecord
 - **Drag-and-drop**: `@dnd-kit` — draggable shift cards (`DraggableCard`) drop onto day columns (`DayColumn`), which calls `api.shifts.update` with a new `date`.
 - **Warning system**: `/api/schedule/warnings` returns two kinds of issues, surfaced in a collapsible panel on the admin page — `staffWarnings` (days where assigned staff count < `minRequired`, or gaps in business-hours coverage) and `laborViolations` (7+ consecutive days worked, or >40 hrs in an ISO week). Holidays are excluded from `staffWarnings`.
 - **Auth**: NextAuth.js v5 (Auth.js) with Google OAuth (conditional on `AUTH_GOOGLE_ID`) and email/password (Credentials + bcryptjs). `src/auth.ts` / `src/auth.config.ts` define providers and JWT/session callbacks (session carries `userId`/`organizationId`/`role`). `middleware.ts` blocks unauthenticated requests (redirect to `/login`, or 401 for `/api/*`) and restricts `/admin` and non-GET `/api/users` to `ADMIN` role. Route Handlers read `organizationId`/`userId` from `auth()` rather than trusting client input.
-- **DB adapter**: `src/lib/prisma.ts` picks the driver at runtime — Prisma Postgres URLs (`prisma://` or containing `prisma.io`) use `withAccelerate()`; any other Postgres URL (e.g. local Docker) uses `@prisma/adapter-pg` directly.
+- **DB adapter**: `src/lib/prisma.ts` always uses `@prisma/adapter-pg` (`new PrismaPg(process.env.DATABASE_URL!)`). Prisma Postgres (`prisma://`) / Accelerate is intentionally NOT supported — an earlier attempt to branch on the URL and use `withAccelerate()` broke production builds (Prisma 7's "client" engine validates that an adapter/accelerateUrl is present at `PrismaClient` construction time, but that code constructed the client first and called `.$extends(withAccelerate())` after, which is too late) and was reverted. Don't reintroduce it without fixing that ordering.
 
 ### Testing
 
 - Unit tests live in `src/__tests__/api/` and test Route Handler functions directly (not via HTTP). They mock `@/lib/prisma` with `vi.mock` and import handler functions (`POST`, `PATCH`, `DELETE`) to call them with synthetic `Request` objects.
 - E2E tests live in `e2e/*.spec.ts` (Playwright) and drive the admin dashboard and schedule page through a real browser.
+
+## コーディング規約
+- 編集作業は、必ずdevelopブランチからトピックブランチを作成し作業すること。
+- developブランチを、勝手にmasterブランチにマージしないこと。
