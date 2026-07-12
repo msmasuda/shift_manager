@@ -62,6 +62,10 @@ export const api = {
     list: () => get<User[]>("/api/users"),
     create: (data: { email: string; name: string; role?: string }) =>
       post<User>("/api/users", data),
+    update: (
+      id: string,
+      data: { defaultStartTime?: string | null; defaultEndTime?: string | null }
+    ) => patch<User>(`/api/users/${id}`, data),
   },
   schedule: {
     days: (from: string, to: string) =>
