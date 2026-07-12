@@ -67,7 +67,8 @@ export default function AdminPage() {
 
   const [currentMonth, setCurrentMonth] = useState(() => {
     const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const thisMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return shiftYM(thisMonth, 1); // シフトは常に翌月分を組むため、翌月をデフォルト表示にする
   });
   const { start: rangeStart, end: rangeEnd } = monthRange(currentMonth);
   const [isUpdating, setIsUpdating] = useState(false);
