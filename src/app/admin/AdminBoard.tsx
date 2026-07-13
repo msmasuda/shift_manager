@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import type { ScheduleDay, User, LeaveRecord } from "@/types";
@@ -631,17 +631,24 @@ export function AdminBoard({
   const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (scrollRef.current && Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-      e.preventDefault();
-      scrollRef.current.scrollLeft += e.deltaY;
-    }
-  };
+  useEffect(() => {
+    // React registers onWheel as a passive native listener, so preventDefault()
+    // there is a no-op (and logs a console error). Attach non-passive to allow it.
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   return (
     <div
       ref={scrollRef}
-      onWheel={handleWheel}
       className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x"
       style={{ scrollbarWidth: 'thin' }}
     >
