@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
-import type { TimeGap, LaborViolation } from "@/types";
+import type { LaborViolation } from "@/types";
+import { findDailyUnderstaffedIntervals } from "@/lib/staffingCoverage";
 
 const daysQuerySchema = z.object({
   from: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
@@ -12,10 +13,6 @@ const daysQuerySchema = z.object({
 function toMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
-}
-
-function toTimeStr(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
 function shiftDuration(start: string, end: string): number {
@@ -30,56 +27,6 @@ function getISOWeekStart(dateStr: string): string {
   const day = d.getUTCDay();
   d.setUTCDate(d.getUTCDate() + (day === 0 ? -6 : 1 - day));
   return d.toISOString().slice(0, 10);
-}
-
-function detectGapsForSession(
-  shifts: { startTime: string; endTime: string }[],
-  openTime: string,
-  closeTime: string
-): TimeGap[] {
-  const open = toMinutes(openTime);
-  const close = toMinutes(closeTime);
-  if (open >= close) return [];
-
-  const intervals = shifts
-    .map((s) => [toMinutes(s.startTime), toMinutes(s.endTime)] as [number, number])
-    .filter(([s, e]) => s < close && e > open)
-    .map(([s, e]) => [Math.max(s, open), Math.min(e, close)] as [number, number])
-    .sort((a, b) => a[0] - b[0]);
-
-  const merged: [number, number][] = [];
-  for (const [s, e] of intervals) {
-    if (merged.length === 0 || s > merged[merged.length - 1][1]) {
-      merged.push([s, e]);
-    } else {
-      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
-    }
-  }
-
-  const gaps: TimeGap[] = [];
-  let cursor = open;
-  for (const [s, e] of merged) {
-    if (s > cursor) gaps.push({ start: toTimeStr(cursor), end: toTimeStr(s) });
-    cursor = Math.max(cursor, e);
-    if (cursor >= close) break;
-  }
-  if (cursor < close) gaps.push({ start: toTimeStr(cursor), end: toTimeStr(close) });
-
-  return gaps;
-}
-
-function detectGaps(
-  shifts: { startTime: string; endTime: string }[],
-  openTime: string,
-  closeTime: string,
-  openTime2?: string | null,
-  closeTime2?: string | null
-): TimeGap[] {
-  const gaps1 = detectGapsForSession(shifts, openTime, closeTime);
-  const gaps2 = openTime2 && closeTime2
-    ? detectGapsForSession(shifts, openTime2, closeTime2)
-    : [];
-  return [...gaps1, ...gaps2];
 }
 
 type UserShiftRecord = {
@@ -183,16 +130,18 @@ export async function GET(request: Request) {
       .filter((d) => !d.isHoliday)
       .map((d) => {
         const uniqueCount = new Set(d.shiftAssignments.map((a) => a.userId)).size;
-        const insufficient = uniqueCount < d.minRequired;
-
         const effectiveOpen = d.openTime ?? org?.openTime ?? null;
         const effectiveClose = d.closeTime ?? org?.closeTime ?? null;
         const effectiveOpen2 = d.openTime2 ?? org?.openTime2 ?? null;
         const effectiveClose2 = d.closeTime2 ?? org?.closeTime2 ?? null;
-        const gaps =
-          effectiveOpen && effectiveClose
-            ? detectGaps(d.shiftAssignments, effectiveOpen, effectiveClose, effectiveOpen2, effectiveClose2)
-            : [];
+        const hasBusinessHours = Boolean(
+          (effectiveOpen && effectiveClose) || (effectiveOpen2 && effectiveClose2)
+        );
+        const gaps = findDailyUnderstaffedIntervals(d.shiftAssignments, d.minRequired, [
+          { openTime: effectiveOpen, closeTime: effectiveClose },
+          { openTime: effectiveOpen2, closeTime: effectiveClose2 },
+        ]);
+        const insufficient = hasBusinessHours ? gaps.length > 0 : uniqueCount < d.minRequired;
 
         return {
           date: d.date,
