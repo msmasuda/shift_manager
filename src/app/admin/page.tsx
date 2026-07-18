@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
+import { ShiftCalendarModal } from "@/components/ShiftCalendarModal";
 
 function dateKey(d: Date) {
   return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
@@ -75,6 +76,7 @@ export default function AdminPage() {
   const [exporting, setExporting] = useState(false);
   const [bulkFilling, setBulkFilling] = useState(false);
   const [bulkFillMessage, setBulkFillMessage] = useState("");
+  const [calendarPreviewOpen, setCalendarPreviewOpen] = useState(false);
 
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
@@ -187,6 +189,16 @@ export default function AdminPage() {
             </button>
           </div>
           <button
+            onClick={() => setCalendarPreviewOpen(true)}
+            disabled={!daysData}
+            className="btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-40"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z" />
+            </svg>
+            プレビュー
+          </button>
+          <button
             onClick={handleBulkFill}
             disabled={bulkFilling}
             className="btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-40"
@@ -295,6 +307,15 @@ export default function AdminPage() {
             />
           </div>
         </DndContext>
+      )}
+
+      {daysData && (
+        <ShiftCalendarModal
+          open={calendarPreviewOpen}
+          onClose={() => setCalendarPreviewOpen(false)}
+          yearMonth={currentMonth}
+          days={buildFullDays(rangeStart, rangeEnd, daysData)}
+        />
       )}
     </div>
   );
