@@ -6,6 +6,8 @@ import { z } from "zod";
 const bulkFillSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  overwrite: z.boolean().optional().default(false),
+  preview: z.boolean().optional().default(false),
 });
 
 function datesInRange(fromStr: string, toStr: string): string[] {
@@ -31,13 +33,13 @@ export async function POST(request: Request) {
     const { organizationId } = session.user;
 
     const body = await request.json();
-    const { from, to } = bulkFillSchema.parse(body);
+    const { from, to, overwrite, preview } = bulkFillSchema.parse(body);
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const dates = datesInRange(from, to).filter((d) => d >= todayStr);
 
     if (dates.length === 0) {
-      return NextResponse.json({ created: 0 });
+      return NextResponse.json({ created: 0, updated: 0 });
     }
 
     const fromDate = new Date(from + "T00:00:00.000Z");
@@ -54,7 +56,7 @@ export async function POST(request: Request) {
       }),
       prisma.scheduleDay.findMany({
         where: { organizationId, date: { gte: fromDate, lte: toDate } },
-        include: { shiftAssignments: { select: { userId: true } } },
+        include: { shiftAssignments: { select: { id: true, userId: true } } },
       }),
       prisma.leaveRecord.findMany({
         where: { organizationId, date: { gte: fromDate, lte: toDate } },
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
         {
           id: d.id,
           isHoliday: d.isHoliday,
-          assignedUserIds: new Set(d.shiftAssignments.map((a) => a.userId)),
+          assignmentsByUserId: new Map(d.shiftAssignments.map((a) => [a.userId, a.id])),
         },
       ])
     );
@@ -76,18 +78,46 @@ export async function POST(request: Request) {
       leaveRecords.map((l) => `${l.userId}|${l.date.toISOString().slice(0, 10)}`)
     );
 
-    const created = await prisma.$transaction(async (tx) => {
-      let count = 0;
+    const fillPlan = dates.flatMap((dateStr) => {
+      const existing = existingDaysMap.get(dateStr);
+      if (existing?.isHoliday) return [];
+
+      return members
+        .filter((member) => !leaveSet.has(`${member.id}|${dateStr}`))
+        .map((member) => ({
+          dateStr,
+          member,
+          scheduleDayId: existing?.id,
+          assignmentId: existing?.assignmentsByUserId.get(member.id),
+        }));
+    });
+
+    const createdCount = fillPlan.filter((item) => !item.assignmentId).length;
+    const updatedCount = overwrite
+      ? fillPlan.filter((item) => Boolean(item.assignmentId)).length
+      : 0;
+
+    if (preview) {
+      return NextResponse.json({ created: createdCount, updated: updatedCount });
+    }
+
+    const resultCounts = await prisma.$transaction(async (tx) => {
+      let created = 0;
+      let updated = 0;
       for (const dateStr of dates) {
         const existing = existingDaysMap.get(dateStr);
         if (existing?.isHoliday) continue;
 
-        const membersToFill = members.filter(
-          (m) =>
-            !leaveSet.has(`${m.id}|${dateStr}`) &&
-            !existing?.assignedUserIds.has(m.id)
+        const eligibleMembers = members.filter(
+          (member) => !leaveSet.has(`${member.id}|${dateStr}`)
         );
-        if (membersToFill.length === 0) continue;
+        const membersToFill = eligibleMembers.filter(
+          (member) => !existing?.assignmentsByUserId.has(member.id)
+        );
+        const membersToOverwrite = overwrite
+          ? eligibleMembers.filter((member) => existing?.assignmentsByUserId.has(member.id))
+          : [];
+        if (membersToFill.length === 0 && membersToOverwrite.length === 0) continue;
 
         const scheduleDayId = existing
           ? existing.id
@@ -108,21 +138,34 @@ export async function POST(request: Request) {
               })
             ).id;
 
-        const result = await tx.shiftAssignment.createMany({
-          data: membersToFill.map((m) => ({
-            scheduleDayId,
-            userId: m.id,
-            startTime: m.defaultStartTime!,
-            endTime: m.defaultEndTime!,
-          })),
-          skipDuplicates: true,
-        });
-        count += result.count;
+        if (membersToFill.length > 0) {
+          const result = await tx.shiftAssignment.createMany({
+            data: membersToFill.map((m) => ({
+              scheduleDayId,
+              userId: m.id,
+              startTime: m.defaultStartTime!,
+              endTime: m.defaultEndTime!,
+            })),
+            skipDuplicates: true,
+          });
+          created += result.count;
+        }
+
+        for (const member of membersToOverwrite) {
+          await tx.shiftAssignment.update({
+            where: { id: existing!.assignmentsByUserId.get(member.id)! },
+            data: {
+              startTime: member.defaultStartTime!,
+              endTime: member.defaultEndTime!,
+            },
+          });
+          updated++;
+        }
       }
-      return count;
+      return { created, updated };
     });
 
-    return NextResponse.json({ created });
+    return NextResponse.json(resultCounts);
   } catch (error) {
     console.error("POST /api/schedule/bulk-fill error:", error);
     if (error instanceof z.ZodError) {
