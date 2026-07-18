@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api } from "@/lib/api";
+import { findDailyUnderstaffedIntervals } from "@/lib/staffingCoverage";
 import type { ScheduleDay, User, LeaveRecord } from "@/types";
 
 interface AdminBoardProps {
@@ -362,7 +363,16 @@ function DayColumn({
   };
 
   const uniqueCount = new Set(assignments.map((a) => a.userId)).size;
-  const insufficient = uniqueCount < minRequired;
+  const understaffedIntervals = findDailyUnderstaffedIntervals(assignments, minRequired, [
+    { openTime, closeTime },
+    { openTime: openTime2, closeTime: closeTime2 },
+  ]);
+  const hasBusinessHours = Boolean(
+    (openTime && closeTime) || (openTime2 && closeTime2)
+  );
+  const insufficient = hasBusinessHours
+    ? understaffedIntervals.length > 0
+    : uniqueCount < minRequired;
   const warn = !isHoliday && (insufficient || minRequired === 0);
   const formattedDate = formatDate(date);
 
@@ -525,8 +535,13 @@ function DayColumn({
                 </span>
               )}
               {insufficient && minRequired > 0 && (
-                <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-                  {uniqueCount} / {minRequired} 定員割れ
+                <span
+                  className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse"
+                  title={understaffedIntervals.map((gap) => `${gap.start}–${gap.end}`).join("、")}
+                >
+                  {understaffedIntervals.length > 0
+                    ? `${understaffedIntervals[0].start}–${understaffedIntervals[0].end} 人数不足`
+                    : `${uniqueCount} / ${minRequired} 定員割れ`}
                 </span>
               )}
             </>
