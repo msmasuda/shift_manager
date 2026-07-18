@@ -511,25 +511,27 @@ function DayColumn({
         </div>
 
         {/* Status bar/warning */}
-        {!isHoliday && (
-          <div className="flex items-center justify-between mt-2 min-h-[22px]">
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
-                 <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
-              ))}
-            </div>
-            {minRequired === 0 && (
-              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-                最低人数 未設定
-              </span>
-            )}
-            {insufficient && minRequired > 0 && (
-              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-                {uniqueCount} / {minRequired} 定員割れ
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex items-center justify-between mt-2 min-h-[22px]">
+          {!isHoliday && (
+            <>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
+                   <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
+                ))}
+              </div>
+              {minRequired === 0 && (
+                <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+                  最低人数 未設定
+                </span>
+              )}
+              {insufficient && minRequired > 0 && (
+                <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+                  {uniqueCount} / {minRequired} 定員割れ
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Cards Container */}
