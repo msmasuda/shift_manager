@@ -13,6 +13,7 @@ import {
 } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
+import { ShiftCalendarModal } from "@/components/ShiftCalendarModal";
 
 function dateKey(d: Date) {
   return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
@@ -75,6 +76,8 @@ export default function AdminPage() {
   const [exporting, setExporting] = useState(false);
   const [bulkFilling, setBulkFilling] = useState(false);
   const [bulkFillMessage, setBulkFillMessage] = useState("");
+  const [bulkFillMenuOpen, setBulkFillMenuOpen] = useState(false);
+  const [calendarPreviewOpen, setCalendarPreviewOpen] = useState(false);
 
   const { data: users } = useSWR(
     organizationId ? ["users", organizationId] : null,
@@ -132,15 +135,29 @@ export default function AdminPage() {
     await refreshSchedule();
   };
 
-  const handleBulkFill = async () => {
+  const handleBulkFill = async (mode: "append" | "overwrite") => {
+    setBulkFillMenuOpen(false);
     setBulkFilling(true);
     setBulkFillMessage("");
     try {
-      const { created } = await api.schedule.bulkFill(rangeStart, rangeEnd);
+      const overwrite = mode === "overwrite";
+      if (overwrite) {
+        const preview = await api.schedule.bulkFill(rangeStart, rangeEnd, {
+          overwrite: true,
+          preview: true,
+        });
+        const confirmed = window.confirm(
+          `新規追加 ${preview.created}件、既存シフト上書き ${preview.updated}件を実行します。\n` +
+          "個別に調整した勤務時間もデフォルト時間に戻ります。よろしいですか？"
+        );
+        if (!confirmed) return;
+      }
+
+      const { created, updated } = await api.schedule.bulkFill(rangeStart, rangeEnd, { overwrite });
       await refreshSchedule();
       setBulkFillMessage(
-        created > 0
-          ? `${created}件のシフトを追加しました`
+        created > 0 || updated > 0
+          ? `${created}件追加、${updated}件上書きしました`
           : "追加できるシフトはありませんでした"
       );
       setTimeout(() => setBulkFillMessage(""), 3000);
@@ -187,15 +204,57 @@ export default function AdminPage() {
             </button>
           </div>
           <button
-            onClick={handleBulkFill}
-            disabled={bulkFilling}
+            onClick={() => setCalendarPreviewOpen(true)}
+            disabled={!daysData}
             className="btn-secondary px-3 py-2 text-sm flex items-center gap-1.5 disabled:opacity-40"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 002 2z" />
             </svg>
-            {bulkFilling ? "入力中..." : "一括入力"}
+            プレビュー
           </button>
+          <div className="relative">
+            <button
+              onClick={() => setBulkFillMenuOpen((open) => !open)}
+              disabled={bulkFilling}
+              aria-haspopup="menu"
+              aria-expanded={bulkFillMenuOpen}
+              className="btn-secondary flex h-10 items-center gap-1.5 px-3 text-sm disabled:opacity-40"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              {bulkFilling ? "入力中..." : "一括入力"}
+              {!bulkFilling && (
+                <svg className={`h-3 w-3 transition-transform ${bulkFillMenuOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              )}
+            </button>
+            {bulkFillMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-50 mt-2 w-56 overflow-hidden rounded-xl border border-border bg-[#111116] p-1.5 shadow-2xl"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => handleBulkFill("append")}
+                  className="w-full rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/10"
+                >
+                  <span className="block text-sm font-bold text-foreground">未入力のみ追加</span>
+                  <span className="mt-0.5 block text-[11px] text-textMuted">入力済みの時間は変更しません</span>
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => handleBulkFill("overwrite")}
+                  className="w-full rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-white/10"
+                >
+                  <span className="block text-sm font-bold text-warn">既存シフトも上書き</span>
+                  <span className="mt-0.5 block text-[11px] text-textMuted">全員をデフォルト時間に戻します</span>
+                </button>
+              </div>
+            )}
+          </div>
           <button
             onClick={async () => {
               if (!daysData || !users) return;
@@ -295,6 +354,15 @@ export default function AdminPage() {
             />
           </div>
         </DndContext>
+      )}
+
+      {daysData && (
+        <ShiftCalendarModal
+          open={calendarPreviewOpen}
+          onClose={() => setCalendarPreviewOpen(false)}
+          yearMonth={currentMonth}
+          days={buildFullDays(rangeStart, rangeEnd, daysData)}
+        />
       )}
     </div>
   );

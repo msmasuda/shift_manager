@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { api } from "@/lib/api";
+import { findDailyUnderstaffedIntervals } from "@/lib/staffingCoverage";
 import type { ScheduleDay, User, LeaveRecord } from "@/types";
 
 interface AdminBoardProps {
@@ -362,7 +363,16 @@ function DayColumn({
   };
 
   const uniqueCount = new Set(assignments.map((a) => a.userId)).size;
-  const insufficient = uniqueCount < minRequired;
+  const understaffedIntervals = findDailyUnderstaffedIntervals(assignments, minRequired, [
+    { openTime, closeTime },
+    { openTime: openTime2, closeTime: closeTime2 },
+  ]);
+  const hasBusinessHours = Boolean(
+    (openTime && closeTime) || (openTime2 && closeTime2)
+  );
+  const insufficient = hasBusinessHours
+    ? understaffedIntervals.length > 0
+    : uniqueCount < minRequired;
   const warn = !isHoliday && (insufficient || minRequired === 0);
   const formattedDate = formatDate(date);
 
@@ -511,25 +521,32 @@ function DayColumn({
         </div>
 
         {/* Status bar/warning */}
-        {!isHoliday && (
-          <div className="flex items-center justify-between mt-2 min-h-[22px]">
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
-                 <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
-              ))}
-            </div>
-            {minRequired === 0 && (
-              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-                最低人数 未設定
-              </span>
-            )}
-            {insufficient && minRequired > 0 && (
-              <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
-                {uniqueCount} / {minRequired} 定員割れ
-              </span>
-            )}
-          </div>
-        )}
+        <div className="flex items-center justify-between mt-2 min-h-[22px]">
+          {!isHoliday && (
+            <>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.max(minRequired, uniqueCount, 1) }).map((_, i) => (
+                   <div key={i} className={`w-1.5 h-1.5 rounded-full ${i < uniqueCount ? 'bg-success' : 'bg-border'}`}></div>
+                ))}
+              </div>
+              {minRequired === 0 && (
+                <span className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse">
+                  最低人数 未設定
+                </span>
+              )}
+              {insufficient && minRequired > 0 && (
+                <span
+                  className="text-[10px] font-bold text-warn bg-warn/10 px-2 py-0.5 rounded-full animate-pulse"
+                  title={understaffedIntervals.map((gap) => `${gap.start}–${gap.end}`).join("、")}
+                >
+                  {understaffedIntervals.length > 0
+                    ? `${understaffedIntervals[0].start}–${understaffedIntervals[0].end} 人数不足`
+                    : `${uniqueCount} / ${minRequired} 定員割れ`}
+                </span>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Cards Container */}
@@ -631,17 +648,24 @@ export function AdminBoard({
   const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (scrollRef.current && Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
-      e.preventDefault();
-      scrollRef.current.scrollLeft += e.deltaY;
-    }
-  };
+  useEffect(() => {
+    // React registers onWheel as a passive native listener, so preventDefault()
+    // there is a no-op (and logs a console error). Attach non-passive to allow it.
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) < Math.abs(e.deltaY)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
 
   return (
     <div
       ref={scrollRef}
-      onWheel={handleWheel}
       className="flex overflow-x-auto pb-8 pt-4 gap-4 snap-x"
       style={{ scrollbarWidth: 'thin' }}
     >
