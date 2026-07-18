@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const txMock = {
   scheduleDay: { upsert: vi.fn() },
-  shiftAssignment: { createMany: vi.fn() },
+  shiftAssignment: { createMany: vi.fn(), update: vi.fn() },
 };
 
 vi.mock("@/lib/prisma", () => ({
@@ -68,7 +68,7 @@ describe("POST /api/schedule/bulk-fill", () => {
     const res = await POST(makeRequest({ from: "2026-01-16", to: "2026-01-16" }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.created).toBe(0);
+    expect(body).toEqual({ created: 0, updated: 0 });
     expect(txMock.shiftAssignment.createMany).not.toHaveBeenCalled();
   });
 
@@ -77,10 +77,66 @@ describe("POST /api/schedule/bulk-fill", () => {
     // The route should short-circuit before querying members/days/leave records at all.
     const res = await POST(makeRequest({ from: "2026-01-10", to: "2026-01-14" }));
     const body = await res.json();
-    expect(body.created).toBe(0);
+    expect(body).toEqual({ created: 0, updated: 0 });
     expect(prisma.user.findMany).not.toHaveBeenCalled();
     expect(prisma.scheduleDay.findMany).not.toHaveBeenCalled();
     expect(prisma.leaveRecord.findMany).not.toHaveBeenCalled();
+  });
+
+  it("preview: reports existing shifts that would be overwritten without writing", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([
+      { id: "user-1", defaultStartTime: "09:00", defaultEndTime: "18:00" },
+      { id: "user-2", defaultStartTime: "10:00", defaultEndTime: "19:00" },
+    ] as any);
+    vi.mocked(prisma.scheduleDay.findMany).mockResolvedValueOnce([
+      {
+        id: "day-16",
+        date: new Date("2026-01-16T00:00:00.000Z"),
+        isHoliday: false,
+        shiftAssignments: [{ id: "shift-1", userId: "user-1" }],
+      },
+    ] as any);
+    vi.mocked(prisma.leaveRecord.findMany).mockResolvedValueOnce([]);
+
+    const res = await POST(makeRequest({
+      from: "2026-01-16",
+      to: "2026-01-16",
+      overwrite: true,
+      preview: true,
+    }));
+
+    expect(await res.json()).toEqual({ created: 1, updated: 1 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("overwrite: updates existing shift times and creates only missing shifts", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValueOnce([
+      { id: "user-1", defaultStartTime: "09:00", defaultEndTime: "18:00" },
+      { id: "user-2", defaultStartTime: "10:00", defaultEndTime: "19:00" },
+    ] as any);
+    vi.mocked(prisma.scheduleDay.findMany).mockResolvedValueOnce([
+      {
+        id: "day-16",
+        date: new Date("2026-01-16T00:00:00.000Z"),
+        isHoliday: false,
+        shiftAssignments: [{ id: "shift-1", userId: "user-1" }],
+      },
+    ] as any);
+    vi.mocked(prisma.leaveRecord.findMany).mockResolvedValueOnce([]);
+    txMock.shiftAssignment.createMany.mockResolvedValueOnce({ count: 1 });
+    txMock.shiftAssignment.update.mockResolvedValueOnce({});
+
+    const res = await POST(makeRequest({
+      from: "2026-01-16",
+      to: "2026-01-16",
+      overwrite: true,
+    }));
+
+    expect(await res.json()).toEqual({ created: 1, updated: 1 });
+    expect(txMock.shiftAssignment.update).toHaveBeenCalledWith({
+      where: { id: "shift-1" },
+      data: { startTime: "09:00", endTime: "18:00" },
+    });
   });
 
   it("excludes holiday days, existing assignments, and leave records", async () => {
@@ -93,7 +149,7 @@ describe("POST /api/schedule/bulk-fill", () => {
         id: "day-16",
         date: new Date("2026-01-16T00:00:00.000Z"),
         isHoliday: false,
-        shiftAssignments: [{ userId: "user-1" }], // user-1 already assigned on 1/16
+        shiftAssignments: [{ id: "shift-1", userId: "user-1" }], // user-1 already assigned on 1/16
       },
       {
         id: "day-17",
