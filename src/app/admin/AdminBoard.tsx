@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { api } from "@/lib/api";
+import { api, alertError } from "@/lib/api";
 import { findDailyUnderstaffedIntervals } from "@/lib/staffingCoverage";
 import type { ScheduleDay, User, LeaveRecord } from "@/types";
 
@@ -63,6 +63,8 @@ function DraggableCard({
     setDeleting(true);
     try {
       await onDelete();
+    } catch (error) {
+      alertError(error);
     } finally {
       setDeleting(false);
     }
@@ -73,6 +75,8 @@ function DraggableCard({
     try {
       await onUpdate(editStart, editEnd);
       setIsEditing(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSaving(false);
     }
@@ -206,6 +210,8 @@ function HolidayCard({
     try {
       await onAdd(addStart, addEnd);
       setIsAdding(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSaving(false);
     }
@@ -346,6 +352,8 @@ function DayColumn({
     setTogglingHoliday(true);
     try {
       await onToggleHoliday(date, !isHoliday);
+    } catch (error) {
+      alertError(error);
     } finally {
       setTogglingHoliday(false);
     }
@@ -356,6 +364,8 @@ function DayColumn({
     try {
       await onUpdateHours(date, editOpen || null, editClose || null, editOpen2 || null, editClose2 || null);
       setEditingHours(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSavingHours(false);
     }
@@ -631,6 +641,7 @@ export function AdminBoard({
   onToggleHoliday,
   onRefresh,
 }: AdminBoardProps) {
+  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -659,8 +670,6 @@ export function AdminBoard({
       </div>
     );
   }
-
-  const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
 
   return (
     <div

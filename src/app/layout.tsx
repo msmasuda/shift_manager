@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import Link from "next/link";
 import { Providers } from "./providers";
 import { NavAuth } from "./nav-auth";
 
@@ -29,7 +29,7 @@ export default function RootLayout({
             </div>
           </header>
           {/* top padding accounts for fixed header */}
-          <main className="flex-1 w-full max-w-6xl mx-auto px-6 pt-32 pb-12 animate-fade-in relative z-10">
+          <main className="flex-1 w-full max-w-6xl mx-auto px-6 pt-32 pb-12 animate-fade-in">
             {children}
           </main>
         </Providers>
