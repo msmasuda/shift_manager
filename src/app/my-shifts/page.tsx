@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
-import { api } from "@/lib/api";
+import { api, alertError } from "@/lib/api";
 import type { LeaveType } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,12 +74,14 @@ export default function MyShiftsPage() {
   const handleSetLeave = async (date: string, type: LeaveType) => {
     setLoadingDate(date);
     try { await api.leave.set(date, type); await refresh(); }
+    catch (error) { alertError(error); }
     finally { setLoadingDate(null); }
   };
 
   const handleCancelLeave = async (id: string, date: string) => {
     setLoadingDate(date);
     try { await api.leave.cancel(id); await refresh(); }
+    catch (error) { alertError(error); }
     finally { setLoadingDate(null); }
   };
 
@@ -172,8 +174,8 @@ export default function MyShiftsPage() {
                   )}
                 </div>
 
-                {/* Actions */}
-                {!isHoliday && (
+                {/* Actions（過去日はサーバー側でも登録・取消不可） */}
+                {!isHoliday && date >= today && (
                   <div className="flex items-center gap-1.5 shrink-0">
                     {leave ? (
                       <Button

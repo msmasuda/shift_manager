@@ -11,13 +11,9 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { api } from "@/lib/api";
+import { api, alertError } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
 import { ShiftCalendarModal } from "@/components/ShiftCalendarModal";
-
-function dateKey(d: Date) {
-  return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
-}
 
 function monthRange(ym: string): { start: string; end: string } {
   const [y, m] = ym.split("-").map(Number);
@@ -44,11 +40,11 @@ function buildFullDays(rangeStart: string, rangeEnd: string, daysData: import("@
   const cur = new Date(rangeStart + "T00:00:00Z");
   const end = new Date(rangeEnd + "T00:00:00Z");
   while (cur <= end) {
-    const key = dateKey(cur);
+    const key = cur.toISOString().slice(0, 10);
     result.push(map.get(key) ?? {
       id: `empty-${key}`,
       date: key,
-      minRequired: 1,
+      minRequired: 0,
       isHoliday: false,
       openTime: null,
       closeTime: null,
@@ -120,6 +116,8 @@ export default function AdminPage() {
     try {
       await api.shifts.update(assignmentId, { date: targetDate });
       await refreshSchedule();
+    } catch (error) {
+      alertError(error);
     } finally {
       setIsUpdating(false);
     }
@@ -135,6 +133,13 @@ export default function AdminPage() {
     await refreshSchedule();
   };
 
+  const showBulkFillMessage = (message: string, ms = 3000) => {
+    setBulkFillMessage(message);
+    setTimeout(() => setBulkFillMessage(""), ms);
+  };
+  const NO_TARGET_MESSAGE =
+    "一括入力の対象がありません。メンバー設定で基本の勤務時間を設定してください（設定済みなら、休日・休み・入力済みの日は対象外です）";
+
   const handleBulkFill = async (mode: "append" | "overwrite") => {
     setBulkFillMenuOpen(false);
     setBulkFilling(true);
@@ -146,6 +151,10 @@ export default function AdminPage() {
           overwrite: true,
           preview: true,
         });
+        if (preview.created === 0 && preview.updated === 0) {
+          showBulkFillMessage(NO_TARGET_MESSAGE, 6000);
+          return;
+        }
         const confirmed = window.confirm(
           `新規追加 ${preview.created}件、既存シフト上書き ${preview.updated}件を実行します。\n` +
           "個別に調整した勤務時間もデフォルト時間に戻ります。よろしいですか？"
@@ -155,17 +164,15 @@ export default function AdminPage() {
 
       const { created, updated } = await api.schedule.bulkFill(rangeStart, rangeEnd, { overwrite });
       await refreshSchedule();
-      setBulkFillMessage(
-        created > 0 || updated > 0
-          ? `${created}件追加、${updated}件上書きしました`
-          : "追加できるシフトはありませんでした"
-      );
-      setTimeout(() => setBulkFillMessage(""), 3000);
+      if (created > 0 || updated > 0) {
+        showBulkFillMessage(`${created}件追加、${updated}件上書きしました`);
+      } else {
+        showBulkFillMessage(NO_TARGET_MESSAGE, 6000);
+      }
     } catch (e) {
-      setBulkFillMessage(
+      showBulkFillMessage(
         e instanceof Error ? `一括入力に失敗しました: ${e.message}` : "一括入力に失敗しました"
       );
-      setTimeout(() => setBulkFillMessage(""), 3000);
     } finally {
       setBulkFilling(false);
     }
@@ -325,8 +332,8 @@ export default function AdminPage() {
       )}
 
       {bulkFillMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-success/50 bg-success/10 flex items-center gap-3 shadow-glow rounded-full">
-          <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-success/50 bg-success/10 flex items-center gap-3 shadow-glow rounded-2xl w-max max-w-[calc(100vw-2rem)]">
+          <svg className="w-4 h-4 shrink-0 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="text-sm font-medium text-success">{bulkFillMessage}</span>
@@ -339,14 +346,17 @@ export default function AdminPage() {
             <AdminBoard
               days={buildFullDays(rangeStart, rangeEnd, daysData)}
               users={users || []}
-              organizationId={organizationId}
               orgOpenTime={orgData?.openTime}
               orgCloseTime={orgData?.closeTime}
               orgOpenTime2={orgData?.openTime2}
               orgCloseTime2={orgData?.closeTime2}
               onUpdateMinRequired={async (date, minRequired) => {
-                await api.schedule.setMinRequired(date, minRequired);
-                await refreshSchedule();
+                try {
+                  await api.schedule.setMinRequired(date, minRequired);
+                  await refreshSchedule();
+                } catch (error) {
+                  alertError(error);
+                }
               }}
               onUpdateHours={handleUpdateHours}
               onToggleHoliday={handleToggleHoliday}

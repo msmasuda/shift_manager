@@ -20,6 +20,9 @@ export async function PATCH(
     if (!session?.user?.organizationId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const sessionOrgId = session.user.organizationId;
 
     const { id } = await params;
@@ -75,6 +78,15 @@ export async function PATCH(
         create: { organizationId, date: dateObj, minRequired: 0 },
         update: {},
       });
+      if (scheduleDay.isHoliday) {
+        return NextResponse.json({ error: "休日にはシフトを入れられません" }, { status: 409 });
+      }
+      const leave = await prisma.leaveRecord.findUnique({
+        where: { userId_date: { userId: data.userId ?? assignment.userId, date: dateObj } },
+      });
+      if (leave) {
+        return NextResponse.json({ error: "この日は休みが登録されています" }, { status: 409 });
+      }
       data.scheduleDayId = scheduleDay.id;
     }
 
@@ -99,6 +111,15 @@ export async function PATCH(
         { status: 400 }
       );
     }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "このユーザーは既にこの日にアサインされています" },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: "Internal Server Error" },
       { status: 500 }
@@ -115,17 +136,19 @@ export async function DELETE(
     if (!session?.user?.organizationId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const { id } = await params;
-    await prisma.shiftAssignment.delete({ where: { id } });
-    return new Response(null, { status: 204 });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
+    const { count } = await prisma.shiftAssignment.deleteMany({
+      where: { id, scheduleDay: { organizationId: session.user.organizationId } },
+    });
+    if (count === 0) {
       return NextResponse.json({ error: "Assignment not found" }, { status: 404 });
     }
+    return new Response(null, { status: 204 });
+  } catch (error) {
     console.error("DELETE /api/shifts/[id] error:", error);
     return NextResponse.json(
       { error: "Internal Server Error" },
