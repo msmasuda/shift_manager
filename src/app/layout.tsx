@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, Geist } from "next/font/google";
+import Link from "next/link";
 import "./globals.css";
 import { Providers } from "./providers";
 import { NavAuth } from "./nav-auth";
-import { cn } from "@/lib/utils";
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-const inter = Inter({ subsets: ["latin"], display: 'swap' });
 
 export const metadata: Metadata = {
   title: "シフト管理",
@@ -20,14 +15,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className={cn(inter.className, "font-sans", geist.variable, "dark")}>
+    <html lang="ja" className="font-sans dark">
       <body className="flex flex-col min-h-screen">
         <Providers>
           <header className="fixed top-0 w-full z-50 px-6 py-4">
             <div className="max-w-6xl mx-auto glass-card px-6 py-3 flex items-center justify-between">
-              <a href="/" className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-400 no-underline hover:opacity-80 transition-opacity">
+              <Link href="/" className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-accent to-purple-400 no-underline hover:opacity-80 transition-opacity">
                 ShiftManager
-              </a>
+              </Link>
               <nav className="flex gap-6 items-center">
                 <NavAuth />
               </nav>

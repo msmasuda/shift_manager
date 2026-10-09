@@ -339,7 +339,6 @@ export default function AdminPage() {
             <AdminBoard
               days={buildFullDays(rangeStart, rangeEnd, daysData)}
               users={users || []}
-              organizationId={organizationId}
               orgOpenTime={orgData?.openTime}
               orgCloseTime={orgData?.closeTime}
               orgOpenTime2={orgData?.openTime2}

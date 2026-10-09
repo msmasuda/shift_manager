@@ -28,7 +28,7 @@ export function AddShiftForm({
     if (users.length > 0 && !users.find((u) => u.id === userId)) {
       setUserId(users[0].id);
     }
-  }, [users]);
+  }, [users, userId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
