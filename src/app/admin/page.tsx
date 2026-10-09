@@ -133,6 +133,13 @@ export default function AdminPage() {
     await refreshSchedule();
   };
 
+  const showBulkFillMessage = (message: string, ms = 3000) => {
+    setBulkFillMessage(message);
+    setTimeout(() => setBulkFillMessage(""), ms);
+  };
+  const NO_TARGET_MESSAGE =
+    "一括入力の対象がありません。メンバー設定で基本の勤務時間を設定してください（設定済みなら、休日・休み・入力済みの日は対象外です）";
+
   const handleBulkFill = async (mode: "append" | "overwrite") => {
     setBulkFillMenuOpen(false);
     setBulkFilling(true);
@@ -144,6 +151,10 @@ export default function AdminPage() {
           overwrite: true,
           preview: true,
         });
+        if (preview.created === 0 && preview.updated === 0) {
+          showBulkFillMessage(NO_TARGET_MESSAGE, 6000);
+          return;
+        }
         const confirmed = window.confirm(
           `新規追加 ${preview.created}件、既存シフト上書き ${preview.updated}件を実行します。\n` +
           "個別に調整した勤務時間もデフォルト時間に戻ります。よろしいですか？"
@@ -153,17 +164,15 @@ export default function AdminPage() {
 
       const { created, updated } = await api.schedule.bulkFill(rangeStart, rangeEnd, { overwrite });
       await refreshSchedule();
-      setBulkFillMessage(
-        created > 0 || updated > 0
-          ? `${created}件追加、${updated}件上書きしました`
-          : "追加できるシフトはありませんでした"
-      );
-      setTimeout(() => setBulkFillMessage(""), 3000);
+      if (created > 0 || updated > 0) {
+        showBulkFillMessage(`${created}件追加、${updated}件上書きしました`);
+      } else {
+        showBulkFillMessage(NO_TARGET_MESSAGE, 6000);
+      }
     } catch (e) {
-      setBulkFillMessage(
+      showBulkFillMessage(
         e instanceof Error ? `一括入力に失敗しました: ${e.message}` : "一括入力に失敗しました"
       );
-      setTimeout(() => setBulkFillMessage(""), 3000);
     } finally {
       setBulkFilling(false);
     }
@@ -323,8 +332,8 @@ export default function AdminPage() {
       )}
 
       {bulkFillMessage && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-success/50 bg-success/10 flex items-center gap-3 shadow-glow rounded-full">
-          <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] glass-card px-4 py-2 border-success/50 bg-success/10 flex items-center gap-3 shadow-glow rounded-2xl w-max max-w-[calc(100vw-2rem)]">
+          <svg className="w-4 h-4 shrink-0 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <span className="text-sm font-medium text-success">{bulkFillMessage}</span>
