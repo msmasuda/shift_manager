@@ -5,6 +5,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn() },
     scheduleDay: { upsert: vi.fn() },
+    leaveRecord: { findUnique: vi.fn() },
     shiftAssignment: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
@@ -127,6 +128,25 @@ describe("POST /api/shifts", () => {
     expect(res.status).toBe(400);
   });
 
+  it("409: target day is a holiday", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(mockUser as any);
+    vi.mocked(prisma.scheduleDay.upsert).mockResolvedValueOnce({ ...mockScheduleDay, isHoliday: true } as any);
+
+    const res = await POST(makePostRequest(validBody));
+    expect(res.status).toBe(409);
+    expect(prisma.shiftAssignment.create).not.toHaveBeenCalled();
+  });
+
+  it("409: user has leave on that day", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(mockUser as any);
+    vi.mocked(prisma.scheduleDay.upsert).mockResolvedValueOnce(mockScheduleDay as any);
+    vi.mocked(prisma.leaveRecord.findUnique).mockResolvedValueOnce({ id: "leave-1" } as any);
+
+    const res = await POST(makePostRequest(validBody));
+    expect(res.status).toBe(409);
+    expect(prisma.shiftAssignment.create).not.toHaveBeenCalled();
+  });
+
   it("409: user already assigned on this day", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce(mockUser as any);
     vi.mocked(prisma.scheduleDay.upsert).mockResolvedValueOnce(mockScheduleDay as any);
@@ -163,6 +183,20 @@ describe("PATCH /api/shifts/[id]", () => {
       params: patchParams,
     });
     expect(res.status).toBe(403);
+    expect(prisma.shiftAssignment.update).not.toHaveBeenCalled();
+  });
+
+  it("409: moving onto a day where the user has leave", async () => {
+    vi.mocked(prisma.shiftAssignment.findUnique).mockResolvedValueOnce(
+      mockAssignment as any
+    );
+    vi.mocked(prisma.scheduleDay.upsert).mockResolvedValueOnce({ id: "day-2" } as any);
+    vi.mocked(prisma.leaveRecord.findUnique).mockResolvedValueOnce({ id: "leave-1" } as any);
+
+    const res = await PATCH(makePatchRequest({ date: "2024-06-16" }), {
+      params: patchParams,
+    });
+    expect(res.status).toBe(409);
     expect(prisma.shiftAssignment.update).not.toHaveBeenCalled();
   });
 

@@ -78,6 +78,15 @@ export async function PATCH(
         create: { organizationId, date: dateObj, minRequired: 0 },
         update: {},
       });
+      if (scheduleDay.isHoliday) {
+        return NextResponse.json({ error: "休日にはシフトを入れられません" }, { status: 409 });
+      }
+      const leave = await prisma.leaveRecord.findUnique({
+        where: { userId_date: { userId: data.userId ?? assignment.userId, date: dateObj } },
+      });
+      if (leave) {
+        return NextResponse.json({ error: "この日は休みが登録されています" }, { status: 409 });
+      }
       data.scheduleDayId = scheduleDay.id;
     }
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
+import { todayJST } from "@/lib/date";
 
 const bulkFillSchema = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { from, to, overwrite, preview } = bulkFillSchema.parse(body);
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayJST();
     const dates = datesInRange(from, to).filter((d) => d >= todayStr);
 
     if (dates.length === 0) {
