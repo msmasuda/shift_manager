@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
-      delete: vi.fn(),
+      deleteMany: vi.fn(),
     },
   },
 }));
@@ -22,6 +22,7 @@ vi.mock("@/auth", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/auth";
 import { POST } from "@/app/api/shifts/route";
 import {
   PATCH,
@@ -68,6 +69,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+function asMember() {
+  vi.mocked(auth).mockResolvedValueOnce({
+    user: { id: "member-1", organizationId: "org-1", role: "MEMBER" },
+  } as any);
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/shifts
 // ---------------------------------------------------------------------------
@@ -78,6 +85,13 @@ describe("POST /api/shifts", () => {
     startTime: "09:00",
     endTime: "18:00",
   };
+
+  it("403: non-admin", async () => {
+    asMember();
+    const res = await POST(makePostRequest(validBody));
+    expect(res.status).toBe(403);
+    expect(prisma.shiftAssignment.create).not.toHaveBeenCalled();
+  });
 
   it("400: startTime >= endTime", async () => {
     const res = await POST(
@@ -143,6 +157,32 @@ describe("POST /api/shifts", () => {
 // PATCH /api/shifts/[id]
 // ---------------------------------------------------------------------------
 describe("PATCH /api/shifts/[id]", () => {
+  it("403: non-admin", async () => {
+    asMember();
+    const res = await PATCH(makePatchRequest({ startTime: "10:00" }), {
+      params: patchParams,
+    });
+    expect(res.status).toBe(403);
+    expect(prisma.shiftAssignment.update).not.toHaveBeenCalled();
+  });
+
+  it("409: target day already has this user (P2002)", async () => {
+    vi.mocked(prisma.shiftAssignment.findUnique).mockResolvedValueOnce(
+      mockAssignment as any
+    );
+    vi.mocked(prisma.scheduleDay.upsert).mockResolvedValueOnce({ id: "day-2" } as any);
+    vi.mocked(prisma.shiftAssignment.update).mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError("unique", {
+        code: "P2002",
+        clientVersion: "5.0.0",
+      })
+    );
+
+    const res = await PATCH(makePatchRequest({ date: "2024-06-16" }), {
+      params: patchParams,
+    });
+    expect(res.status).toBe(409);
+  });
   it("404: assignment not found", async () => {
     vi.mocked(prisma.shiftAssignment.findUnique).mockResolvedValueOnce(null);
 
@@ -214,25 +254,29 @@ describe("PATCH /api/shifts/[id]", () => {
 // DELETE /api/shifts/[id]
 // ---------------------------------------------------------------------------
 describe("DELETE /api/shifts/[id]", () => {
-  it("204: success", async () => {
-    vi.mocked(prisma.shiftAssignment.delete).mockResolvedValueOnce(
-      mockAssignment as any
-    );
+  it("204: success, scoped to session organization", async () => {
+    vi.mocked(prisma.shiftAssignment.deleteMany).mockResolvedValueOnce({ count: 1 });
 
     const res = await DELETE(makeDeleteRequest(), { params: deleteParams });
     expect(res.status).toBe(204);
+    expect(prisma.shiftAssignment.deleteMany).toHaveBeenCalledWith({
+      where: { id: "assign-1", scheduleDay: { organizationId: "org-1" } },
+    });
   });
 
-  it("404: assignment not found (P2025)", async () => {
-    const p2025 = new Prisma.PrismaClientKnownRequestError("record not found", {
-      code: "P2025",
-      clientVersion: "5.0.0",
-    });
-    vi.mocked(prisma.shiftAssignment.delete).mockRejectedValueOnce(p2025);
+  it("404: not found or belongs to another organization", async () => {
+    vi.mocked(prisma.shiftAssignment.deleteMany).mockResolvedValueOnce({ count: 0 });
 
     const res = await DELETE(makeDeleteRequest(), { params: deleteParams });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toMatch(/not found/i);
+  });
+
+  it("403: non-admin", async () => {
+    asMember();
+    const res = await DELETE(makeDeleteRequest(), { params: deleteParams });
+    expect(res.status).toBe(403);
+    expect(prisma.shiftAssignment.deleteMany).not.toHaveBeenCalled();
   });
 });

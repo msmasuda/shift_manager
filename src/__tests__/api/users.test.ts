@@ -48,6 +48,15 @@ describe("POST /api/users", () => {
     expect(res.status).toBe(201);
   });
 
+  it("does not select passwordHash in the response", async () => {
+    vi.mocked(prisma.user.create).mockResolvedValueOnce({ id: "user-1" } as any);
+
+    await POST(makePostRequest({ ...validBody, password: "password123" }));
+    const { select } = vi.mocked(prisma.user.create).mock.calls[0][0] as any;
+    expect(select).toBeDefined();
+    expect(select.passwordHash).toBeUndefined();
+  });
+
   it("400: invalid email", async () => {
     const res = await POST(makePostRequest({ ...validBody, email: "not-an-email" }));
     expect(res.status).toBe(400);
