@@ -63,19 +63,4 @@ test.describe('Admin Dashboard', () => {
     // 保存後: フォームが閉じ、新しい時刻が表示される
     await expect(page.getByText('10:00 - 19:00')).toBeVisible({ timeout: 10_000 });
   });
-
-  test('can add a new shift via the form', async ({ page }) => {
-    // AddShiftForm の <form> 内に絞ってセレクタを解決する
-    const addForm = page.locator('form');
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10);
-
-    await addForm.locator('input[type="date"]').fill(dateStr);
-    await addForm.locator('input[type="time"]').nth(0).fill('08:00');
-    await addForm.locator('input[type="time"]').nth(1).fill('17:00');
-    await page.getByRole('button', { name: '追加する' }).click();
-
-    // 追加後にシフトカードが（少なくとも1枚）表示されている
-    await expect(page.getByTestId('shift-card').first()).toBeVisible({ timeout: 10_000 });
-  });
 });

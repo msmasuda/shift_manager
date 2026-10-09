@@ -11,13 +11,9 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { api } from "@/lib/api";
+import { api, alertError } from "@/lib/api";
 import { AdminBoard } from "./AdminBoard";
 import { ShiftCalendarModal } from "@/components/ShiftCalendarModal";
-
-function dateKey(d: Date) {
-  return d.toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
-}
 
 function monthRange(ym: string): { start: string; end: string } {
   const [y, m] = ym.split("-").map(Number);
@@ -44,11 +40,11 @@ function buildFullDays(rangeStart: string, rangeEnd: string, daysData: import("@
   const cur = new Date(rangeStart + "T00:00:00Z");
   const end = new Date(rangeEnd + "T00:00:00Z");
   while (cur <= end) {
-    const key = dateKey(cur);
+    const key = cur.toISOString().slice(0, 10);
     result.push(map.get(key) ?? {
       id: `empty-${key}`,
       date: key,
-      minRequired: 1,
+      minRequired: 0,
       isHoliday: false,
       openTime: null,
       closeTime: null,
@@ -120,6 +116,8 @@ export default function AdminPage() {
     try {
       await api.shifts.update(assignmentId, { date: targetDate });
       await refreshSchedule();
+    } catch (error) {
+      alertError(error);
     } finally {
       setIsUpdating(false);
     }
@@ -339,14 +337,17 @@ export default function AdminPage() {
             <AdminBoard
               days={buildFullDays(rangeStart, rangeEnd, daysData)}
               users={users || []}
-              organizationId={organizationId}
               orgOpenTime={orgData?.openTime}
               orgCloseTime={orgData?.closeTime}
               orgOpenTime2={orgData?.openTime2}
               orgCloseTime2={orgData?.closeTime2}
               onUpdateMinRequired={async (date, minRequired) => {
-                await api.schedule.setMinRequired(date, minRequired);
-                await refreshSchedule();
+                try {
+                  await api.schedule.setMinRequired(date, minRequired);
+                  await refreshSchedule();
+                } catch (error) {
+                  alertError(error);
+                }
               }}
               onUpdateHours={handleUpdateHours}
               onToggleHoliday={handleToggleHoliday}
