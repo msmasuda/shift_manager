@@ -13,6 +13,7 @@ setup('authenticate as admin', async ({ page }) => {
   // dev credentials フォームが表示されるまで待機
   await page.waitForSelector('input[type="email"]');
   await page.fill('input[type="email"]', 'yamada@cafe.example.com');
+  await page.fill('input[type="password"]', 'password123');
   await page.click('button[type="submit"]');
   // admin は / → /admin にリダイレクト
   await page.waitForURL('/admin', { timeout: 15_000 });
@@ -23,6 +24,7 @@ setup('authenticate as member', async ({ page }) => {
   await page.goto('/login');
   await page.waitForSelector('input[type="email"]');
   await page.fill('input[type="email"]', 'sato@cafe.example.com');
+  await page.fill('input[type="password"]', 'password123');
   await page.click('button[type="submit"]');
   // member は / → /my-shifts にリダイレクト
   await page.waitForURL('/my-shifts', { timeout: 15_000 });

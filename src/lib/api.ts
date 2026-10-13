@@ -2,59 +2,43 @@ import type { User, Organization, ScheduleDay, ShiftAssignment, WarningsResponse
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-async function get<T>(path: string, params?: Record<string, string>): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const url = new URL(path, base);
-  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const res = await fetch(`${base}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  const res = await fetch(new URL(path, base), {
+    method,
+    ...(body !== undefined && {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }),
   });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+  if (!res.ok) {
+    const text = await res.text();
+    let message = text;
+    try {
+      message = JSON.parse(text).error ?? text;
+    } catch {}
+    throw new Error(message);
+  }
+  return res.status === 204 ? (undefined as T) : res.json();
 }
 
-async function put<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const res = await fetch(`${base}${path}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
+function get<T>(path: string, params?: Record<string, string>): Promise<T> {
+  const query = params ? `?${new URLSearchParams(params)}` : "";
+  return request<T>("GET", path + query);
 }
+const post = <T>(path: string, body: unknown) => request<T>("POST", path, body);
+const put = <T>(path: string, body: unknown) => request<T>("PUT", path, body);
+const patch = <T>(path: string, body: unknown) => request<T>("PATCH", path, body);
+const del = (path: string) => request<void>("DELETE", path);
 
-async function patch<T>(path: string, body: unknown): Promise<T> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const res = await fetch(`${base}${path}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-async function del(path: string): Promise<void> {
-  const base = API || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const res = await fetch(`${base}${path}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(await res.text());
+/** API エラーをユーザーに通知する（UI ハンドラーの catch 用） */
+export function alertError(error: unknown) {
+  window.alert(error instanceof Error ? error.message : String(error));
 }
 
 export const api = {
   organizations: {
-    list: () => get<Organization[]>("/api/organizations"),
     get: (id: string) => get<Organization>(`/api/organizations/${id}`),
-    create: (name: string) => post<Organization>("/api/organizations", { name }),
     update: (id: string, data: { name?: string; openTime?: string | null; closeTime?: string | null; openTime2?: string | null; closeTime2?: string | null }) =>
       patch<Organization>(`/api/organizations/${id}`, data),
   },

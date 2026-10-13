@@ -21,6 +21,9 @@ export async function POST(request: Request) {
     if (!session?.user?.organizationId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (session.user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const { organizationId } = session.user;
 
     const body = await request.json();
@@ -43,6 +46,15 @@ export async function POST(request: Request) {
       create: { organizationId, date: dateObj, minRequired: 0 },
       update: {},
     });
+    if (scheduleDay.isHoliday) {
+      return NextResponse.json({ error: "休日にはシフトを入れられません" }, { status: 409 });
+    }
+    const leave = await prisma.leaveRecord.findUnique({
+      where: { userId_date: { userId: userId, date: dateObj } },
+    });
+    if (leave) {
+      return NextResponse.json({ error: "この日は休みが登録されています" }, { status: 409 });
+    }
 
     const duplicate = await prisma.shiftAssignment.findFirst({
       where: { scheduleDayId: scheduleDay.id, userId },

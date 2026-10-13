@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { z } from "zod";
+import { todayJST } from "@/lib/date";
 
 const postSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -45,22 +46,21 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { date: dateStr, type } = postSchema.parse(body);
+    if (dateStr < todayJST()) {
+      return NextResponse.json({ error: "過去の日付には登録できません" }, { status: 400 });
+    }
     const date = new Date(dateStr);
 
-    // 同じ日のシフトがあれば削除
-    const scheduleDay = await prisma.scheduleDay.findUnique({
-      where: { organizationId_date: { organizationId, date } },
-    });
-    if (scheduleDay) {
-      await prisma.shiftAssignment.deleteMany({
-        where: { scheduleDayId: scheduleDay.id, userId },
+    // 同じ日のシフトがあれば削除し、休みを登録する（途中で失敗してもシフトだけ消えないよう1トランザクションで）
+    const record = await prisma.$transaction(async (tx) => {
+      await tx.shiftAssignment.deleteMany({
+        where: { userId, scheduleDay: { organizationId, date } },
       });
-    }
-
-    const record = await prisma.leaveRecord.upsert({
-      where: { userId_date: { userId, date } },
-      create: { organizationId, userId, date, type },
-      update: { type },
+      return tx.leaveRecord.upsert({
+        where: { userId_date: { userId, date } },
+        create: { organizationId, userId, date, type },
+        update: { type },
+      });
     });
     return NextResponse.json(record, { status: 201 });
   } catch (error) {

@@ -65,6 +65,14 @@ export async function POST(request: Request) {
         role: role ?? "MEMBER",
         ...(passwordHash && { passwordHash }),
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        defaultStartTime: true,
+        defaultEndTime: true,
+      },
     });
     return NextResponse.json(user, { status: 201 });
   } catch (error) {

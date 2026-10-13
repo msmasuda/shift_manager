@@ -2,14 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { api } from "@/lib/api";
+import { api, alertError } from "@/lib/api";
 import { findDailyUnderstaffedIntervals } from "@/lib/staffingCoverage";
 import type { ScheduleDay, User, LeaveRecord } from "@/types";
 
 interface AdminBoardProps {
   days: ScheduleDay[];
   users: User[];
-  organizationId: string;
   orgOpenTime?: string | null;
   orgCloseTime?: string | null;
   orgOpenTime2?: string | null;
@@ -64,6 +63,8 @@ function DraggableCard({
     setDeleting(true);
     try {
       await onDelete();
+    } catch (error) {
+      alertError(error);
     } finally {
       setDeleting(false);
     }
@@ -74,6 +75,8 @@ function DraggableCard({
     try {
       await onUpdate(editStart, editEnd);
       setIsEditing(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSaving(false);
     }
@@ -207,6 +210,8 @@ function HolidayCard({
     try {
       await onAdd(addStart, addEnd);
       setIsAdding(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSaving(false);
     }
@@ -347,6 +352,8 @@ function DayColumn({
     setTogglingHoliday(true);
     try {
       await onToggleHoliday(date, !isHoliday);
+    } catch (error) {
+      alertError(error);
     } finally {
       setTogglingHoliday(false);
     }
@@ -357,6 +364,8 @@ function DayColumn({
     try {
       await onUpdateHours(date, editOpen || null, editClose || null, editOpen2 || null, editClose2 || null);
       setEditingHours(false);
+    } catch (error) {
+      alertError(error);
     } finally {
       setSavingHours(false);
     }
@@ -623,7 +632,6 @@ function DayColumn({
 export function AdminBoard({
   days,
   users,
-  organizationId,
   orgOpenTime,
   orgCloseTime,
   orgOpenTime2,
@@ -633,18 +641,6 @@ export function AdminBoard({
   onToggleHoliday,
   onRefresh,
 }: AdminBoardProps) {
-  if (days.length === 0) {
-    return (
-      <div className="glass-card p-12 mt-8 text-center border-dashed items-center flex flex-col justify-center">
-        <svg className="w-16 h-16 text-textMuted/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-        <h3 className="text-xl font-bold mb-2">スケジュールがありません</h3>
-        <p className="text-textMuted">
-          指定された期間にシフトデータが見つかりません。<br/>上部のフォームから新しいシフトを追加してください。
-        </p>
-      </div>
-    );
-  }
-
   const today = new Date().toLocaleDateString("sv-SE"); // YYYY-MM-DD in local time
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -662,6 +658,18 @@ export function AdminBoard({
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
   }, []);
+
+  if (days.length === 0) {
+    return (
+      <div className="glass-card p-12 mt-8 text-center border-dashed items-center flex flex-col justify-center">
+        <svg className="w-16 h-16 text-textMuted/40 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        <h3 className="text-xl font-bold mb-2">スケジュールがありません</h3>
+        <p className="text-textMuted">
+          指定された期間にシフトデータが見つかりません。<br/>上部のフォームから新しいシフトを追加してください。
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div

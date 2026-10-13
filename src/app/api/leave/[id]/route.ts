@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
+import { todayJST } from "@/lib/date";
 
 export async function DELETE(
   _request: Request,
@@ -17,6 +18,9 @@ export async function DELETE(
     const record = await prisma.leaveRecord.findUnique({ where: { id } });
     if (!record || record.userId !== userId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (record.date.toISOString().slice(0, 10) < todayJST()) {
+      return NextResponse.json({ error: "過去の日付は取り消せません" }, { status: 400 });
     }
 
     await prisma.leaveRecord.delete({ where: { id } });
