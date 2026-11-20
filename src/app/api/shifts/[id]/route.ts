@@ -107,7 +107,7 @@ export async function PATCH(
     console.error("PATCH /api/shifts/[id] error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation Error", details: error.errors },
+        { error: "Validation Error", details: error.issues },
         { status: 400 }
       );
     }

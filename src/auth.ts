@@ -1,10 +1,11 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import bcryptjs from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { authConfig } from "./auth.config";
-import { isLockedOut, recordLoginFailure, clearLoginFailures } from "@/lib/loginThrottle";
+import { isLockedOut, recordLoginFailure, clearLoginFailures, getClientIp } from "@/lib/loginThrottle";
+import { verifyCredentials } from "@/lib/credentials";
+import { allowSignIn } from "@/lib/signInPolicy";
 import type { UserRole } from "@/types";
 
 const credentialsProvider = Credentials({
@@ -14,24 +15,21 @@ const credentialsProvider = Credentials({
     email: { label: "Email", type: "email" },
     password: { label: "Password", type: "password" },
   },
-  authorize: async (credentials) => {
+  authorize: async (credentials, request) => {
     const email = credentials?.email as string | undefined;
     const password = credentials?.password as string | undefined;
     if (!email || !password) return null;
-    if (isLockedOut(email)) return null;
+    const ip = getClientIp(request);
+    if (isLockedOut(email, ip)) return null;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, email: true, name: true, passwordHash: true },
-    });
-    const valid = !!user?.passwordHash && (await bcryptjs.compare(password, user.passwordHash));
-    if (!user || !valid) {
-      recordLoginFailure(email);
+    const user = await verifyCredentials(email, password);
+    if (!user) {
+      recordLoginFailure(email, ip);
       return null;
     }
-    clearLoginFailures(email);
+    clearLoginFailures(email, ip);
 
-    return { id: user.id, email: user.email, name: user.name };
+    return user;
   },
 });
 
@@ -43,14 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    signIn: async ({ user }) => {
-      if (!user.email) return false;
-      const dbUser = await prisma.user.findUnique({
-        where: { email: user.email },
-        select: { id: true },
-      });
-      return !!dbUser;
-    },
+    signIn: allowSignIn,
     // auth() のたびに DB から読み直し、ロール変更・ユーザー削除を再ログインを待たずに反映する
     jwt: async ({ token, user }) => {
       const where = user?.email

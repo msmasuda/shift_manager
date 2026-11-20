@@ -9,7 +9,12 @@ const createUserSchema = z.object({
   email: z.string().email("Invalid email"),
   name: z.string().min(1, "Name is required"),
   role: z.enum(["ADMIN", "MEMBER"]).optional(),
-  password: z.string().min(8, "Password must be at least 8 characters").optional(),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    // bcrypt は 72 バイトより後ろを無視する（日本語は 1 文字 3 バイト）ので、文字数ではなくバイト数で制限する
+    .refine((p) => new TextEncoder().encode(p).length <= 72, "Password must be at most 72 bytes")
+    .optional(),
 });
 
 export async function GET() {
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
     console.error("POST /api/users error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation Error", details: error.errors },
+        { error: "Validation Error", details: error.issues },
         { status: 400 }
       );
     }

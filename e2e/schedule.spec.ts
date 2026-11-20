@@ -1,55 +1,55 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
+import {
+  adminApi,
+  createFixtureShift,
+  deleteShift,
+  nextMonth,
+  MEMBER_NAME,
+  FIXTURE_START,
+  FIXTURE_END,
+} from './fixtures';
 
 test.describe('Schedule Page (member view)', () => {
-  test('shows schedule heading', async ({ page }) => {
-    await page.goto('/schedule');
-    await expect(page.getByRole('heading', { name: 'シフト一覧' })).toBeVisible();
+  let api: APIRequestContext;
+  let shiftId: string;
+
+  test.beforeAll(async () => {
+    // メンバーにはシフト作成権限がないので、テストデータは管理者の API で用意する
+    api = await adminApi();
+    shiftId = await createFixtureShift(api);
   });
 
-  test('displays all organization members in day columns', async ({ page }) => {
-    // /api/users のレスポンスを先に捕捉するため goto より前に登録
-    const usersResponsePromise = page.waitForResponse(
-      (r) => r.url().includes('/api/users') && r.request().method() === 'GET',
-      { timeout: 20_000 },
-    );
-
-    await page.goto('/schedule');
-
-    const usersResponse = await usersResponsePromise;
-    expect(usersResponse.status(), '/api/users が 200 を返すこと').toBe(200);
-
-    const users = await usersResponse.json();
-    expect(users.length, 'ユーザーが 1 件以上返ること').toBeGreaterThan(0);
-
-    // UI にも全メンバーが表示される
-    await expect(page.getByText('佐藤 花子').first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('鈴木 一郎').first()).toBeVisible({ timeout: 10_000 });
+  test.afterAll(async () => {
+    await deleteShift(api, shiftId);
+    await api.dispose();
   });
 
-  test('shows 休み badge for users without shifts', async ({ page }) => {
-    const usersResponsePromise = page.waitForResponse(
-      (r) => r.url().includes('/api/users') && r.request().method() === 'GET',
-      { timeout: 20_000 },
-    );
-
+  test('shows schedule heading and current month', async ({ page }) => {
     await page.goto('/schedule');
-    await usersResponsePromise; // users ロード完了を待つ
+    await expect(page.getByRole('heading', { name: 'シフトカレンダー' })).toBeVisible();
 
-    await expect(page.getByText('休み').first()).toBeVisible({ timeout: 10_000 });
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    await expect(page.locator('input[type="month"]')).toHaveValue(thisMonth);
   });
 
-  test('date range filter changes displayed days', async ({ page }) => {
+  test('month navigation switches to next month', async ({ page }) => {
     await page.goto('/schedule');
+    await page.getByRole('button', { name: '次の月' }).click();
+    await expect(page.locator('input[type="month"]')).toHaveValue(nextMonth());
+  });
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  test('highlights own shift in the calendar', async ({ page }) => {
+    await page.goto('/schedule');
+    await page.getByRole('button', { name: '次の月' }).click();
 
-    const inputs = page.locator('input[type="date"]');
-    await inputs.nth(0).fill(fmt(tomorrow));
-    await inputs.nth(1).fill(fmt(tomorrow));
+    // ログイン中のメンバー自身のシフトは「（自分）」付きで表示される
+    await expect(page.getByText(`${MEMBER_NAME}（自分）`).first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(`${FIXTURE_START}–${FIXTURE_END}`)).toBeVisible();
+  });
 
-    await page.waitForTimeout(500);
-    await expect(inputs.nth(0)).toHaveValue(fmt(tomorrow));
+  test('member cannot open the admin dashboard', async ({ page }) => {
+    await page.goto('/admin');
+    await expect(page).toHaveURL(/\/my-shifts$/);
   });
 });

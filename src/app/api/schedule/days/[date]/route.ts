@@ -70,7 +70,7 @@ export async function PUT(
     console.error("PUT /api/schedule/days/[date] error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation Error", details: error.errors },
+        { error: "Validation Error", details: error.issues },
         { status: 400 }
       );
     }
