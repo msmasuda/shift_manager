@@ -32,6 +32,8 @@ Copy `.env.example` to `.env` and configure `DATABASE_URL`. The default points t
 
 Auth also requires `AUTH_SECRET` (`openssl rand -base64 32`). `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` are optional — Google sign-in is only enabled when `AUTH_GOOGLE_ID` is set.
 
+In production mode (`next start`) Auth.js rejects requests with `UntrustedHost` unless `AUTH_URL` or `AUTH_TRUST_HOST=true` is set. To run E2E against a production build locally: `npm run build && AUTH_TRUST_HOST=true npx next start -p 3000`, then `npm run test:e2e` (Playwright reuses the running server). Some bugs only appear there — `next dev` disables `<Link>` prefetching.
+
 ## Architecture
 
 This is a **monorepo Next.js 15 App Router** app with the backend API co-located as Route Handlers. There is no separate backend process.

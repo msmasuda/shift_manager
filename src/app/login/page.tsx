@@ -1,12 +1,11 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 
 function LoginContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const error = searchParams.get("error");
 
   const [email, setEmail] = useState("");
@@ -24,11 +23,13 @@ function LoginContent() {
       password,
       redirect: false,
     });
-    setLoading(false);
     if (result?.error) {
+      setLoading(false);
       setCredError("メールアドレスまたはパスワードが正しくありません");
     } else {
-      router.push("/");
+      // router.push だと、ログイン前に先読みした「/ → /login」のリダイレクトがルーターキャッシュから
+      // 使われて /login に戻ってしまう（本番ビルドのみ）。セッションが変わったのでフルリロードで遷移する
+      window.location.assign("/");
     }
   };
 
