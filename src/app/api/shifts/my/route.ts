@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     console.error("GET /api/shifts/my error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation Error", details: error.errors },
+        { error: "Validation Error", details: error.issues },
         { status: 400 }
       );
     }
