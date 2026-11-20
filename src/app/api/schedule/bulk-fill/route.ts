@@ -4,12 +4,34 @@ import { auth } from "@/auth";
 import { z } from "zod";
 import { todayJST } from "@/lib/date";
 
-const bulkFillSchema = z.object({
-  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  overwrite: z.boolean().optional().default(false),
-  preview: z.boolean().optional().default(false),
-});
+// 管理画面は 1 か月単位で呼ぶ。巨大な期間で 1 トランザクションが膨れ上がらないよう上限を設ける
+const MAX_RANGE_DAYS = 93;
+
+// 2026-02-30 のような実在しない日付は Date が繰り上げてしまうので往復一致で弾く
+const dateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((s) => {
+    const d = new Date(s + "T00:00:00.000Z");
+    return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, "Invalid date");
+
+const bulkFillSchema = z
+  .object({
+    from: dateString,
+    to: dateString,
+    overwrite: z.boolean().optional().default(false),
+    preview: z.boolean().optional().default(false),
+  })
+  .refine(({ from, to }) => from <= to, {
+    message: "to must be on or after from",
+    path: ["to"],
+  })
+  .refine(
+    ({ from, to }) =>
+      (Date.parse(to) - Date.parse(from)) / 86_400_000 + 1 <= MAX_RANGE_DAYS,
+    { message: `Range must be ${MAX_RANGE_DAYS} days or less`, path: ["to"] }
+  );
 
 function datesInRange(fromStr: string, toStr: string): string[] {
   const dates: string[] = [];

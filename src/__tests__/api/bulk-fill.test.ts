@@ -60,6 +60,33 @@ describe("POST /api/schedule/bulk-fill", () => {
     expect(body.error).toBe("Validation Error");
   });
 
+  it("400: non-existent calendar date", async () => {
+    const res = await POST(makeRequest({ from: "2026-02-30", to: "2026-03-01" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("400: to before from", async () => {
+    const res = await POST(makeRequest({ from: "2026-01-20", to: "2026-01-19" }));
+    expect(res.status).toBe(400);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("400: range longer than 93 days", async () => {
+    // 2026-01-16 から 93 日目は 2026-04-18
+    const res = await POST(makeRequest({ from: "2026-01-16", to: "2026-04-19" }));
+    expect(res.status).toBe(400);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it("accepts a range of exactly 93 days", async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.scheduleDay.findMany).mockResolvedValue([]);
+    vi.mocked(prisma.leaveRecord.findMany).mockResolvedValue([]);
+
+    const res = await POST(makeRequest({ from: "2026-01-16", to: "2026-04-18" }));
+    expect(res.status).toBe(200);
+  });
+
   it("created: 0 when no members have default times set", async () => {
     vi.mocked(prisma.user.findMany).mockResolvedValueOnce([]);
     vi.mocked(prisma.scheduleDay.findMany).mockResolvedValueOnce([]);
