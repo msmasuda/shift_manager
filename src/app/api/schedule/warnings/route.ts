@@ -176,7 +176,7 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error("GET /api/schedule/warnings error:", error);
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation Error", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation Error", details: error.issues }, { status: 400 });
     }
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }

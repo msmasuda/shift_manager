@@ -84,7 +84,7 @@ export async function POST(request: Request) {
     console.error("POST /api/shifts error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation Error", details: error.errors },
+        { error: "Validation Error", details: error.issues },
         { status: 400 }
       );
     }
