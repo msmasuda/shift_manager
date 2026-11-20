@@ -57,6 +57,24 @@ describe("POST /api/users", () => {
     expect(select.passwordHash).toBeUndefined();
   });
 
+  it("201: password of exactly 72 bytes", async () => {
+    vi.mocked(prisma.user.create).mockResolvedValueOnce({ id: "user-1" } as any);
+    const res = await POST(makePostRequest({ ...validBody, password: "a".repeat(72) }));
+    expect(res.status).toBe(201);
+  });
+
+  it("400: password longer than 72 bytes", async () => {
+    const res = await POST(makePostRequest({ ...validBody, password: "a".repeat(73) }));
+    expect(res.status).toBe(400);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it("400: password over 72 bytes counted in UTF-8, not characters", async () => {
+    // 25 文字だが 75 バイト
+    const res = await POST(makePostRequest({ ...validBody, password: "あ".repeat(25) }));
+    expect(res.status).toBe(400);
+  });
+
   it("400: invalid email", async () => {
     const res = await POST(makePostRequest({ ...validBody, email: "not-an-email" }));
     expect(res.status).toBe(400);

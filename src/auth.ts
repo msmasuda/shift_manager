@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "./auth.config";
 import { isLockedOut, recordLoginFailure, clearLoginFailures, getClientIp } from "@/lib/loginThrottle";
 import { verifyCredentials } from "@/lib/credentials";
+import { allowSignIn } from "@/lib/signInPolicy";
 import type { UserRole } from "@/types";
 
 const credentialsProvider = Credentials({
@@ -40,14 +41,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    signIn: async ({ user }) => {
-      if (!user.email) return false;
-      const dbUser = await prisma.user.findUnique({
-        where: { email: user.email },
-        select: { id: true },
-      });
-      return !!dbUser;
-    },
+    signIn: allowSignIn,
     // auth() のたびに DB から読み直し、ロール変更・ユーザー削除を再ログインを待たずに反映する
     jwt: async ({ token, user }) => {
       const where = user?.email
